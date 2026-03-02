@@ -27,7 +27,7 @@ Describe what you want to build. A single ReAct agent plans it, writes the code,
 
 ---
 
-## THIS PROJECT IS IN ACTIVE DEVELOPMENT AND OPEN TO CONTRINUTIONS
+## THIS PROJECT IS IN ACTIVE DEVELOPMENT AND OPEN TO CONTRIBUTIONS
 
 ---
 ![cover](docs/cover.png)
