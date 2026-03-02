@@ -1,0 +1,58 @@
+"""Secrets vault schemas."""
+from datetime import datetime
+from enum import Enum
+from typing import Optional
+
+from pydantic import BaseModel, field_validator
+
+
+class ProviderType(str, Enum):
+    anthropic = "anthropic"
+    openai = "openai"
+    ollama = "ollama"
+    lmstudio = "lmstudio"
+    obsidian_ai = "obsidian-ai"
+
+
+class VaultKeyCreate(BaseModel):
+    """Create or replace a stored secret.
+
+    For cloud providers (anthropic, openai) `value` is the API key.
+    For local providers (ollama, lmstudio) `value` is the base URL
+    (e.g. "http://localhost:11434") — overrides the default from settings.
+    """
+    provider: ProviderType
+    label: str
+    value: str
+
+    @field_validator("value")
+    @classmethod
+    def value_not_empty(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("value must not be empty")
+        return v.strip()
+
+
+class VaultKeyResponse(BaseModel):
+    """Public representation of a stored secret — value is NEVER included."""
+    id: str
+    provider: str
+    label: str
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+class VaultKeyListResponse(BaseModel):
+    secrets: list[VaultKeyResponse]
+
+
+class VaultValidateRequest(BaseModel):
+    provider: ProviderType
+
+
+class VaultValidateResponse(BaseModel):
+    provider: str
+    valid: bool
+    message: str

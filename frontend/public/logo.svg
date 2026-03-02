@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 72" width="320" height="72" fill="none">
+  <defs>
+    <!-- Crystal gradient: indigo → violet → cyan -->
+    <linearGradient id="crystalGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#6366F1"/>
+      <stop offset="50%"  stop-color="#A855F7"/>
+      <stop offset="100%" stop-color="#22D3EE"/>
+    </linearGradient>
+    <!-- Highlight facet -->
+    <linearGradient id="facetLight" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#ffffff" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.05"/>
+    </linearGradient>
+    <!-- Shadow facet -->
+    <linearGradient id="facetDark" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"   stop-color="#000000" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.30"/>
+    </linearGradient>
+  </defs>
+
+  <!-- ── Obsidian crystal icon (centered at x=36, y=36) ── -->
+  <!-- Outer octagon gem shape -->
+  <polygon
+    points="36,4 56,16 64,36 56,56 36,68 16,56 8,36 16,16"
+    fill="url(#crystalGrad)"
+  />
+  <!-- Top-left highlight facet -->
+  <polygon
+    points="36,4 56,16 36,36 16,16"
+    fill="url(#facetLight)"
+  />
+  <!-- Bottom-right shadow facet -->
+  <polygon
+    points="56,16 64,36 56,56 36,36"
+    fill="url(#facetDark)"
+  />
+  <!-- Center inner highlight -->
+  <polygon
+    points="36,20 48,28 48,44 36,52 24,44 24,28"
+    fill="none"
+    stroke="rgba(255,255,255,0.18)"
+    stroke-width="1"
+  />
+  <!-- Core dot -->
+  <circle cx="36" cy="36" r="4" fill="rgba(255,255,255,0.25)"/>
+
+  <!-- ── Wordmark ── -->
+  <!-- "obsidian" — white, bold -->
+  <text
+    x="82"
+    y="30"
+    font-family="'Geist', 'Inter', -apple-system, sans-serif"
+    font-size="20"
+    font-weight="700"
+    letter-spacing="-0.3"
+    fill="#F8FAFC"
+  >obsidian</text>
+  <!-- "webdev" — indigo/violet accent, lighter weight -->
+  <text
+    x="82"
+    y="55"
+    font-family="'Geist', 'Inter', -apple-system, sans-serif"
+    font-size="16"
+    font-weight="500"
+    letter-spacing="0.5"
+    fill="#A78BFA"
+  >webdev</text>
+
+  <!-- Vertical divider between icon and text -->
+  <line x1="72" y1="16" x2="72" y2="58" stroke="rgba(255,255,255,0.10)" stroke-width="1"/>
+</svg>

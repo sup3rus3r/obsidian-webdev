@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 110" width="520" height="110" fill="none">
+  <defs>
+    <linearGradient id="crystalGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#6366F1"/>
+      <stop offset="50%"  stop-color="#A855F7"/>
+      <stop offset="100%" stop-color="#22D3EE"/>
+    </linearGradient>
+    <linearGradient id="facetLight" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#ffffff" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.05"/>
+    </linearGradient>
+    <linearGradient id="facetDark" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"   stop-color="#000000" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.30"/>
+    </linearGradient>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#0F0F1A"/>
+      <stop offset="100%" stop-color="#1A1A2E"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background pill -->
+  <rect x="0" y="0" width="520" height="110" rx="14" fill="url(#bgGrad)"/>
+  <rect x="0" y="0" width="520" height="110" rx="14" fill="none" stroke="rgba(99,102,241,0.25)" stroke-width="1"/>
+
+  <!-- Crystal gem icon (centered at 55, 55) -->
+  <polygon
+    points="55,10 81,24 90,55 81,86 55,100 29,86 20,55 29,24"
+    fill="url(#crystalGrad)"
+  />
+  <polygon
+    points="55,10 81,24 55,55 29,24"
+    fill="url(#facetLight)"
+  />
+  <polygon
+    points="81,24 90,55 81,86 55,55"
+    fill="url(#facetDark)"
+  />
+  <polygon
+    points="55,28 70,37 70,63 55,72 40,63 40,37"
+    fill="none"
+    stroke="rgba(255,255,255,0.18)"
+    stroke-width="1.5"
+  />
+  <circle cx="55" cy="55" r="6" fill="rgba(255,255,255,0.22)"/>
+
+  <!-- Divider -->
+  <line x1="110" y1="22" x2="110" y2="88" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+
+  <!-- "obsidian" wordmark -->
+  <text
+    x="128"
+    y="52"
+    font-family="'Geist', 'Inter', -apple-system, sans-serif"
+    font-size="34"
+    font-weight="800"
+    letter-spacing="-0.5"
+    fill="#F8FAFC"
+  >obsidian</text>
+  <!-- "webdev" accent -->
+  <text
+    x="128"
+    y="84"
+    font-family="'Geist', 'Inter', -apple-system, sans-serif"
+    font-size="22"
+    font-weight="500"
+    letter-spacing="2"
+    fill="#A78BFA"
+  >webdev</text>
+
+  <!-- Tagline (right side, subtle) -->
+  <text
+    x="390"
+    y="52"
+    font-family="'Geist', 'Inter', -apple-system, sans-serif"
+    font-size="11"
+    font-weight="400"
+    fill="rgba(248,250,252,0.35)"
+    text-anchor="middle"
+  >AI-POWERED</text>
+  <text
+    x="390"
+    y="68"
+    font-family="'Geist', 'Inter', -apple-system, sans-serif"
+    font-size="11"
+    font-weight="400"
+    fill="rgba(248,250,252,0.35)"
+    text-anchor="middle"
+  >PLATFORM BUILDER</text>
+</svg>
