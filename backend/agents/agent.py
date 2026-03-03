@@ -173,7 +173,11 @@ class Agent:
                 response = await self._llm_call(messages)
             except Exception as exc:
                 logger.exception("LLM call failed")
-                await self.on_event({"type": "error", "message": f"LLM error: {exc}"})
+                # Include the cause for connection errors which have unhelpful top-level messages
+                detail = str(exc)
+                if hasattr(exc, "__cause__") and exc.__cause__:
+                    detail = f"{exc} — {exc.__cause__}"
+                await self.on_event({"type": "error", "message": f"LLM error: {detail}"})
                 return
 
             if self.model_provider == "anthropic":

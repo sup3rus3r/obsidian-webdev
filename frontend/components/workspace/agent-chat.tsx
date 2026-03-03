@@ -557,12 +557,28 @@ export function AgentChat({
   const [input, setInput] = useState("");
   const [isRunning, setIsRunning] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
-  const [selectedModel, setSelectedModel] = useState<ModelOption>(
-    () =>
+  const [selectedModel, setSelectedModel] = useState<ModelOption>(() => {
+    // Prefer localStorage (user's last choice) over project default
+    try {
+      const saved = localStorage.getItem(`agent-chat-model-${projectId}`);
+      if (saved) {
+        const [provider, ...rest] = saved.split("/");
+        const model = rest.join("/");
+        const preset = CLOUD_PRESETS.find((o) => o.provider === provider && o.model === model);
+        if (preset) return preset;
+        if (LOCAL_PROVIDER_IDS.includes(provider as typeof LOCAL_PROVIDER_IDS[number])) {
+          const lp = LOCAL_PROVIDERS.find((p) => p.provider === provider)!;
+          return { provider, model, label: model, badge: lp.badge };
+        }
+      }
+    } catch {}
+    // Fall back to project default, then global default
+    return (
       CLOUD_PRESETS.find(
         (o) => o.provider === defaultModelProvider && o.model === defaultModelId,
-      ) ?? DEFAULT_MODEL,
-  );
+      ) ?? DEFAULT_MODEL
+    );
+  });
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
   const [attachments, setAttachments] = useState<ParsedAttachment[]>([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -577,20 +593,6 @@ export function AgentChat({
   const sessionRestoredRef = useRef(false);
   const usedToolsRef = useRef(false);
 
-
-  useEffect(() => {
-    const saved = localStorage.getItem(`agent-chat-model-${projectId}`);
-    if (!saved) return;
-    const [provider, ...rest] = saved.split("/");
-    const model = rest.join("/");
-    const preset = CLOUD_PRESETS.find((o) => o.provider === provider && o.model === model);
-    if (preset) {
-      setSelectedModel(preset);
-    } else if (LOCAL_PROVIDER_IDS.includes(provider as typeof LOCAL_PROVIDER_IDS[number])) {
-      const lp = LOCAL_PROVIDERS.find((p) => p.provider === provider)!;
-      setSelectedModel({ provider, model, label: model, badge: lp.badge });
-    }
-  }, [projectId]);
 
   const handleModelSelect = useCallback((opt: ModelOption) => {
     setSelectedModel(opt);

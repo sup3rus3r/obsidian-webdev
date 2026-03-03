@@ -19,20 +19,33 @@ _SKIP_DIRS = frozenset({
     ".cache", "coverage", ".coverage", ".yarn",
 })
 
+# File extensions that are binary — stored on the volume only, not in MongoDB.
+_BINARY_EXTS = frozenset({
+    ".ico", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif",
+    ".woff", ".woff2", ".ttf", ".otf", ".eot",
+    ".mp4", ".webm", ".mp3", ".wav",
+    ".pdf", ".zip", ".gz", ".tar",
+    ".bin", ".exe", ".dll", ".so",
+})
+
 
 _MAX_LIST_SIZE = 5 * 1024 * 1024
 
 
 def _scan_volume(project_dir: str) -> list[str]:
-    """Walk the host volume and return relative paths of source files."""
+    """Walk the host volume and return relative paths of text source files.
+
+    Excludes binary files (images, fonts, etc.) — those live on the volume only.
+    Includes dotfiles like .eslintrc.json, .gitignore, .env.
+    """
     results: list[str] = []
     if not os.path.isdir(project_dir):
         return results
     for dirpath, dirnames, filenames in os.walk(project_dir):
-
         dirnames[:] = [d for d in dirnames if d not in _SKIP_DIRS and not d.startswith(".")]
         for fname in filenames:
-            if fname.startswith("."):
+            _, ext = os.path.splitext(fname.lower())
+            if ext in _BINARY_EXTS:
                 continue
             abs_path = os.path.join(dirpath, fname)
             try:

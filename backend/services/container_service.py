@@ -251,7 +251,16 @@ async def restore_files_from_mongo(project_id: str) -> int:
 
     Called when a fresh container is created so the agent has the latest
     canonical files available in /workspace.  Returns the number of files written.
+    Binary files (images, fonts, etc.) are not stored in MongoDB and are skipped.
     """
+    _BINARY_EXTS = frozenset({
+        ".ico", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif",
+        ".woff", ".woff2", ".ttf", ".otf", ".eot",
+        ".mp4", ".webm", ".mp3", ".wav",
+        ".pdf", ".zip", ".gz", ".tar",
+        ".bin", ".exe", ".dll", ".so",
+    })
+
     db = get_database()
     docs = await ProjectFileCollection.find_by_project(db, project_id)
     host_dir = _project_dir(project_id)
@@ -259,6 +268,9 @@ async def restore_files_from_mongo(project_id: str) -> int:
     count = 0
     for doc in docs:
         rel = doc["path"].lstrip("/")
+        _, ext = os.path.splitext(rel.lower())
+        if ext in _BINARY_EXTS:
+            continue
         full = os.path.join(host_dir, rel)
         os.makedirs(os.path.dirname(full), exist_ok=True)
         async with aiofiles.open(full, "w", encoding="utf-8") as f:
