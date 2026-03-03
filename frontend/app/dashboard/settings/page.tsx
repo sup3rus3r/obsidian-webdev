@@ -53,6 +53,7 @@ const PROVIDERS: { value: ProviderType; label: string; placeholder: string }[] =
 ];
 
 const EMPTY_OBSIDIAN = { url: "", api_key: "", api_secret: "" };
+const EMPTY_LOCAL = { base_url: "", api_key: "" };
 
 function AddKeyDialog({ onAdded }: { onAdded: (key: VaultKey) => void }) {
   const { data: session } = useSession();
@@ -64,6 +65,7 @@ function AddKeyDialog({ onAdded }: { onAdded: (key: VaultKey) => void }) {
     value: "",
   });
   const [obsidianCfg, setObsidianCfg] = useState(EMPTY_OBSIDIAN);
+  const [localCfg, setLocalCfg] = useState(EMPTY_LOCAL);
 
   const selectedProvider = PROVIDERS.find((p) => p.value === form.provider);
   const isObsidian = form.provider === "obsidian-ai";
@@ -74,11 +76,14 @@ function AddKeyDialog({ onAdded }: { onAdded: (key: VaultKey) => void }) {
     !form.label.trim() ||
     (isObsidian
       ? !obsidianCfg.url.trim() || !obsidianCfg.api_key.trim()
+      : isLocal
+      ? !localCfg.base_url.trim()
       : !form.value.trim());
 
   const handleProviderChange = (v: string) => {
     setForm((f) => ({ ...f, provider: v as ProviderType, value: "" }));
     setObsidianCfg(EMPTY_OBSIDIAN);
+    setLocalCfg(EMPTY_LOCAL);
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -88,6 +93,8 @@ function AddKeyDialog({ onAdded }: { onAdded: (key: VaultKey) => void }) {
     try {
       const payload: VaultKeyCreate = isObsidian
         ? { ...form, value: JSON.stringify(obsidianCfg) }
+        : isLocal
+        ? { ...form, value: JSON.stringify({ base_url: localCfg.base_url.trim(), api_key: localCfg.api_key.trim() || undefined }) }
         : form;
       const key = await upsertVaultKey(payload, session.accessToken);
       toast.success("API key saved");
@@ -95,6 +102,7 @@ function AddKeyDialog({ onAdded }: { onAdded: (key: VaultKey) => void }) {
       setOpen(false);
       setForm({ provider: "anthropic", label: "", value: "" });
       setObsidianCfg(EMPTY_OBSIDIAN);
+      setLocalCfg(EMPTY_LOCAL);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to save key");
     } finally {
@@ -181,14 +189,36 @@ function AddKeyDialog({ onAdded }: { onAdded: (key: VaultKey) => void }) {
                 />
               </div>
             </>
+          ) : isLocal ? (
+            <>
+              <div className="space-y-1.5">
+                <Label htmlFor="local-url">Endpoint URL</Label>
+                <Input
+                  id="local-url"
+                  type="url"
+                  placeholder={selectedProvider?.placeholder}
+                  value={localCfg.base_url}
+                  onChange={(e) => setLocalCfg((c) => ({ ...c, base_url: e.target.value }))}
+                  required
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="local-apikey">API Key <span className="text-muted-foreground font-normal">(optional)</span></Label>
+                <Input
+                  id="local-apikey"
+                  type="password"
+                  placeholder="Leave blank if not required"
+                  value={localCfg.api_key}
+                  onChange={(e) => setLocalCfg((c) => ({ ...c, api_key: e.target.value }))}
+                />
+              </div>
+            </>
           ) : (
             <div className="space-y-1.5">
-              <Label htmlFor="key-value">
-                {isLocal ? "Endpoint URL" : "API Key"}
-              </Label>
+              <Label htmlFor="key-value">API Key</Label>
               <Input
                 id="key-value"
-                type={isLocal ? "url" : "password"}
+                type="password"
                 placeholder={selectedProvider?.placeholder}
                 value={form.value}
                 onChange={(e) => setForm((f) => ({ ...f, value: e.target.value }))}

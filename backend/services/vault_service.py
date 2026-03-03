@@ -236,9 +236,26 @@ async def _validate_obsidian_ai(json_value: str) -> tuple[bool, str]:
         return False, f"Validation error: {e}"
 
 
-async def _validate_local(base_url: str) -> tuple[bool, str]:
-    """For Ollama/LMStudio: stored value is the base URL. Just ping it."""
-    base_url = base_url.rstrip("/")
+def _parse_local_value(value: str) -> tuple[str, str]:
+    """Parse a local provider vault value into (base_url, api_key).
+
+    Supports two formats (backward compatible):
+    - Plain URL string: "http://host:port"
+    - JSON: {"base_url": "http://host:port", "api_key": "optional"}
+    """
+    import json as _json
+    try:
+        cfg = _json.loads(value)
+        return cfg.get("base_url", "").rstrip("/"), cfg.get("api_key", "")
+    except (ValueError, TypeError):
+        return value.rstrip("/"), ""
+
+
+async def _validate_local(value: str) -> tuple[bool, str]:
+    """For Ollama/LMStudio: stored value is a URL or JSON {base_url, api_key?}. Ping it."""
+    base_url, _ = _parse_local_value(value)
+    if not base_url:
+        return False, "No endpoint URL configured"
     for path in ["/v1/models", "/api/tags"]:
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:

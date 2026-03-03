@@ -220,16 +220,26 @@ class Agent:
             "input_tokens": msg.usage.input_tokens,
         }
 
+    def _resolve_local_client(self, provider: str):
+        """Return (base_url, api_key) for a local provider, reading from vault via self.api_key."""
+        from services.vault_service import _parse_local_value
+        vault_url, vault_key = _parse_local_value(self.api_key) if self.api_key else ("", "")
+        if provider == "ollama":
+            raw = vault_url or settings.OLLAMA_BASE_URL
+            base_url = f"{raw.rstrip('/v1').rstrip('/')}/v1"
+            api_key = vault_key or "ollama"
+        else:  # lmstudio
+            raw = vault_url or settings.LMSTUDIO_BASE_URL
+            base_url = f"{raw.rstrip('/v1').rstrip('/')}/v1"
+            api_key = vault_key or "lmstudio"
+        return base_url, api_key
+
     async def _call_openai(self, messages: list[dict]) -> dict:
         import openai
         base_url: str | None = None
         api_key = self.api_key or settings.OPENAI_API_KEY
-        if self.model_provider == "ollama":
-            base_url = f"{settings.OLLAMA_BASE_URL}/v1"
-            api_key = "ollama"
-        elif self.model_provider == "lmstudio":
-            base_url = settings.LMSTUDIO_BASE_URL
-            api_key = "lmstudio"
+        if self.model_provider in ("ollama", "lmstudio"):
+            base_url, api_key = self._resolve_local_client(self.model_provider)
         client = openai.AsyncOpenAI(api_key=api_key, base_url=base_url)
         oai_messages = [{"role": "system", "content": self._system_prompt}, *messages]
         is_reasoning = self.model_id.startswith(("o1", "o3", "o4"))
@@ -785,12 +795,8 @@ class Agent:
             import openai
             base_url: str | None = None
             api_key = self.api_key or settings.OPENAI_API_KEY
-            if self.model_provider == "ollama":
-                base_url = f"{settings.OLLAMA_BASE_URL}/v1"
-                api_key = "ollama"
-            elif self.model_provider == "lmstudio":
-                base_url = settings.LMSTUDIO_BASE_URL
-                api_key = "lmstudio"
+            if self.model_provider in ("ollama", "lmstudio"):
+                base_url, api_key = self._resolve_local_client(self.model_provider)
             client = openai.AsyncOpenAI(api_key=api_key, base_url=base_url)
             resp = await client.chat.completions.create(
                 model=self.model_id,
