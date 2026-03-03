@@ -48,10 +48,21 @@ _COMPACT_THRESHOLD = 0.80
 _COMPACT_KEEP_RECENT = 8
 _PRUNE_KEEP_RECENT = 10
 _PRUNE_RESULT_MAX = 500
+_EVICT_KEEP_RECENT = 4   # Non-Anthropic: turns to keep verbatim after each iteration
+_EVICT_RESULT_MAX = 200  # Chars for older tool results (non-Anthropic)
 _MAX_BASH_LINES = 400
 _MAX_FILE_LINES = 500
 _MAX_WEB_CHARS = 20_000
 _MAX_ITERATIONS = None  # No cap — run until the model declares done or user stops
+
+
+def _add_tools_cache_control(tools: list[dict]) -> list[dict]:
+    """Return a shallow copy of the tools list with cache_control on the last entry."""
+    if not tools:
+        return tools
+    result = list(tools)
+    result[-1] = {**result[-1], "cache_control": {"type": "ephemeral"}}
+    return result
 
 
 def _load_system_prompt() -> str:
@@ -213,16 +224,29 @@ class Agent:
     async def _call_anthropic(self, messages: list[dict]) -> dict:
         import anthropic
         client = anthropic.AsyncAnthropic(api_key=self.api_key or settings.ANTHROPIC_API_KEY)
+        # System prompt cached once per session (static content, largest token source)
+        system = [{"type": "text", "text": self._system_prompt, "cache_control": {"type": "ephemeral"}}]
+        # Tool definitions cached (static, resent every call)
+        tools = _add_tools_cache_control(TOOLS_ANTHROPIC)
+        # Conversation history with a cache breakpoint at the stable prefix
+        cached_messages = self._build_cached_messages(messages)
         async with client.messages.stream(
             model=self.model_id,
             max_tokens=8192,
-            system=self._system_prompt,
-            messages=messages,
-            tools=TOOLS_ANTHROPIC,
+            system=system,
+            messages=cached_messages,
+            tools=tools,
         ) as stream:
             async for text in stream.text_stream:
                 await self.on_event({"type": "token", "content": text})
             msg = await stream.get_final_message()
+        cache_read = getattr(msg.usage, "cache_read_input_tokens", 0) or 0
+        cache_created = getattr(msg.usage, "cache_creation_input_tokens", 0) or 0
+        if cache_read or cache_created:
+            logger.debug(
+                "Anthropic cache: read=%d created=%d billed_input=%d",
+                cache_read, cache_created, msg.usage.input_tokens,
+            )
         return {
             "provider": "anthropic",
             "message": msg,
@@ -438,6 +462,10 @@ class Agent:
         for tc in raw_tcs:
             messages.append({"role": "tool", "tool_call_id": tc["id"], "content": result_map[tc["id"]]})
 
+        # Keep context lean: cap results from older turns immediately so they
+        # don't accumulate across iterations (especially important for local models).
+        self._evict_old_results(messages)
+
         if cancelled:
             raise asyncio.CancelledError
         if stop_event.is_set():
@@ -649,6 +677,60 @@ class Agent:
         except Exception as exc:
             return f"Web search unavailable: {exc}"
 
+
+    def _build_cached_messages(self, messages: list[dict]) -> list[dict]:
+        """Return a copy of messages with a cache_control breakpoint at the stable prefix.
+
+        Places the breakpoint on the last user message before the recent window so
+        that the stable history prefix is cached across loop iterations without
+        requiring a full deep-copy of every message.
+        """
+        import copy
+        if len(messages) < 4:
+            return messages  # Not enough history to benefit
+        msgs = copy.deepcopy(messages)
+        # Everything before the recent window is stable — find the nearest user
+        # message at or before that boundary and mark it.
+        boundary = max(0, len(msgs) - _COMPACT_KEEP_RECENT - 1)
+        for i in range(boundary, -1, -1):
+            msg = msgs[i]
+            if msg.get("role") != "user":
+                continue
+            content = msg.get("content")
+            if isinstance(content, list) and content:
+                last_block = content[-1]
+                if isinstance(last_block, dict) and "cache_control" not in last_block:
+                    last_block["cache_control"] = {"type": "ephemeral"}
+                    break
+            elif isinstance(content, str):
+                msg["content"] = [
+                    {"type": "text", "text": content, "cache_control": {"type": "ephemeral"}}
+                ]
+                break
+        return msgs
+
+    def _evict_old_results(self, messages: list[dict]) -> None:
+        """Cap tool results in older turns after every non-Anthropic loop iteration.
+
+        Keeps the last _EVICT_KEEP_RECENT turns verbatim; older tool results are
+        trimmed to _EVICT_RESULT_MAX chars so the agent retains decision context
+        without accumulating large bash/file outputs across many iterations.
+        """
+        cutoff = max(0, len(messages) - _EVICT_KEEP_RECENT)
+        for msg in messages[:cutoff]:
+            role = msg.get("role")
+            if role == "tool":
+                content = msg.get("content", "")
+                if isinstance(content, str) and len(content) > _EVICT_RESULT_MAX:
+                    msg["content"] = content[:_EVICT_RESULT_MAX] + " [...]"
+            elif role == "user":
+                content = msg.get("content")
+                if isinstance(content, list):
+                    for block in content:
+                        if isinstance(block, dict) and block.get("type") == "tool_result":
+                            res = block.get("content", "")
+                            if isinstance(res, str) and len(res) > _EVICT_RESULT_MAX:
+                                block["content"] = res[:_EVICT_RESULT_MAX] + " [...]"
 
     def _estimate_tokens(self, messages: list[dict]) -> int:
         """Use actual input token count from the last LLM response when available,
