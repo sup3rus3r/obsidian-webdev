@@ -174,10 +174,19 @@ class Agent:
                 response = await self._llm_call(messages)
             except Exception as exc:
                 logger.exception("LLM call failed")
-                # Include the cause for connection errors which have unhelpful top-level messages
                 detail = str(exc)
                 if hasattr(exc, "__cause__") and exc.__cause__:
                     detail = f"{exc} — {exc.__cause__}"
+                # Strip HTML error pages (e.g. LM Studio 500 responses) to just the text
+                if "<html" in detail.lower() or "<!doctype" in detail.lower():
+                    detail = _strip_html(detail).strip() or detail[:200]
+                # Add resolved URL for local providers to aid debugging
+                if self.model_provider in ("ollama", "lmstudio"):
+                    try:
+                        resolved_url, _ = self._resolve_local_client(self.model_provider)
+                        detail = f"{detail} (URL: {resolved_url})"
+                    except Exception:
+                        pass
                 await self.on_event({"type": "error", "message": f"LLM error: {detail}"})
                 return
 
@@ -223,15 +232,22 @@ class Agent:
     def _resolve_local_client(self, provider: str):
         """Return (base_url, api_key) for a local provider, reading from vault via self.api_key."""
         from services.vault_service import _parse_local_value
+
+        def _normalize(url: str) -> str:
+            """Strip trailing /v1 or / then append /v1 — handles any suffix cleanly."""
+            url = url.rstrip("/")
+            if url.endswith("/v1"):
+                url = url[:-3]
+            return f"{url}/v1"
+
         vault_url, vault_key = _parse_local_value(self.api_key) if self.api_key else ("", "")
         if provider == "ollama":
-            raw = vault_url or settings.OLLAMA_BASE_URL
-            base_url = f"{raw.rstrip('/v1').rstrip('/')}/v1"
+            base_url = _normalize(vault_url or settings.OLLAMA_BASE_URL)
             api_key = vault_key or "ollama"
         else:  # lmstudio
-            raw = vault_url or settings.LMSTUDIO_BASE_URL
-            base_url = f"{raw.rstrip('/v1').rstrip('/')}/v1"
+            base_url = _normalize(vault_url or settings.LMSTUDIO_BASE_URL)
             api_key = vault_key or "lmstudio"
+        logger.debug("Local provider %s → base_url=%s", provider, base_url)
         return base_url, api_key
 
     async def _call_openai(self, messages: list[dict]) -> dict:
