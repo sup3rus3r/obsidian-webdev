@@ -42,16 +42,26 @@ interface ModelOption {
   badge: string;
 }
 
-const MODEL_OPTIONS: ModelOption[] = [
-  { provider: "openai",    model: "gpt-4.1",                  label: "GPT-4.1",       badge: "OpenAI"    },
-  { provider: "openai",    model: "gpt-4.1-mini",             label: "GPT-4.1 mini",  badge: "OpenAI"    },
-  { provider: "openai",    model: "o4-mini",                  label: "o4-mini",        badge: "OpenAI"    },
-  { provider: "anthropic", model: "claude-sonnet-4-6",        label: "Claude Sonnet", badge: "Anthropic" },
-  { provider: "anthropic", model: "claude-opus-4-6",          label: "Claude Opus",   badge: "Anthropic" },
-  { provider: "anthropic", model: "claude-haiku-4-5-20251001",label: "Claude Haiku",  badge: "Anthropic" },
+// Cloud model presets — extend here to add new models, no other changes needed.
+const CLOUD_PRESETS: ModelOption[] = [
+  { provider: "openai",    model: "gpt-4.1",                   label: "GPT-4.1",       badge: "OpenAI"    },
+  { provider: "openai",    model: "gpt-4.1-mini",              label: "GPT-4.1 mini",  badge: "OpenAI"    },
+  { provider: "openai",    model: "o4-mini",                   label: "o4-mini",        badge: "OpenAI"    },
+  { provider: "anthropic", model: "claude-sonnet-4-6",         label: "Claude Sonnet", badge: "Anthropic" },
+  { provider: "anthropic", model: "claude-opus-4-6",           label: "Claude Opus",   badge: "Anthropic" },
+  { provider: "anthropic", model: "claude-haiku-4-5-20251001", label: "Claude Haiku",  badge: "Anthropic" },
 ];
 
-const DEFAULT_MODEL = MODEL_OPTIONS[0];
+// Local / self-hosted providers — model name is free-text input, no presets.
+const LOCAL_PROVIDERS = [
+  { provider: "ollama",      badge: "Ollama"      },
+  { provider: "lmstudio",    badge: "LM Studio"   },
+  { provider: "obsidian-ai", badge: "Obsidian AI" },
+] as const;
+
+const LOCAL_PROVIDER_IDS = LOCAL_PROVIDERS.map((p) => p.provider);
+
+const DEFAULT_MODEL = CLOUD_PRESETS[0];
 
 
 type MessageRole =
@@ -549,7 +559,7 @@ export function AgentChat({
   const [isStarting, setIsStarting] = useState(false);
   const [selectedModel, setSelectedModel] = useState<ModelOption>(
     () =>
-      MODEL_OPTIONS.find(
+      CLOUD_PRESETS.find(
         (o) => o.provider === defaultModelProvider && o.model === defaultModelId,
       ) ?? DEFAULT_MODEL,
   );
@@ -570,15 +580,30 @@ export function AgentChat({
 
   useEffect(() => {
     const saved = localStorage.getItem(`agent-chat-model-${projectId}`);
-    if (saved) {
-      const found = MODEL_OPTIONS.find((o) => `${o.provider}/${o.model}` === saved);
-      if (found) setSelectedModel(found);
+    if (!saved) return;
+    const [provider, ...rest] = saved.split("/");
+    const model = rest.join("/");
+    const preset = CLOUD_PRESETS.find((o) => o.provider === provider && o.model === model);
+    if (preset) {
+      setSelectedModel(preset);
+    } else if (LOCAL_PROVIDER_IDS.includes(provider as typeof LOCAL_PROVIDER_IDS[number])) {
+      const lp = LOCAL_PROVIDERS.find((p) => p.provider === provider)!;
+      setSelectedModel({ provider, model, label: model, badge: lp.badge });
     }
   }, [projectId]);
 
   const handleModelSelect = useCallback((opt: ModelOption) => {
     setSelectedModel(opt);
     localStorage.setItem(`agent-chat-model-${projectId}`, `${opt.provider}/${opt.model}`);
+    setModelPickerOpen(false);
+  }, [projectId]);
+
+  const handleLocalModelConfirm = useCallback((provider: string, badge: string, modelName: string) => {
+    const name = modelName.trim();
+    if (!name) return;
+    const opt: ModelOption = { provider, model: name, label: name, badge };
+    setSelectedModel(opt);
+    localStorage.setItem(`agent-chat-model-${projectId}`, `${provider}/${name}`);
     setModelPickerOpen(false);
   }, [projectId]);
 
@@ -1045,21 +1070,55 @@ export function AgentChat({
                   <ChevronDown className="h-2.5 w-2.5" />
                 </button>
                 {modelPickerOpen && (
-                  <div className="absolute bottom-full left-0 mb-1 z-50 min-w-44 overflow-hidden rounded-lg border border-border/40 bg-popover shadow-lg">
-                    {MODEL_OPTIONS.map((opt) => (
-                      <button
-                        key={`${opt.provider}/${opt.model}`}
-                        type="button"
-                        onClick={() => handleModelSelect(opt)}
-                        className={cn(
-                          "flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-[11px] transition-colors hover:bg-muted/50",
-                          selectedModel.model === opt.model && "text-primary",
-                        )}
-                      >
-                        <span>{opt.label}</span>
-                        <span className="text-[9px] text-muted-foreground/50">{opt.badge}</span>
-                      </button>
-                    ))}
+                  <div className="absolute bottom-full left-0 mb-1 z-50 w-56 overflow-hidden rounded-lg border border-border/40 bg-popover shadow-lg">
+                    {/* Cloud presets */}
+                    <div className="px-2 pt-2 pb-1">
+                      <p className="px-1 pb-1 text-[9px] font-medium uppercase tracking-wider text-muted-foreground/40">Cloud</p>
+                      {CLOUD_PRESETS.map((opt) => (
+                        <button
+                          key={`${opt.provider}/${opt.model}`}
+                          type="button"
+                          onClick={() => handleModelSelect(opt)}
+                          className={cn(
+                            "flex w-full items-center justify-between gap-3 rounded-md px-2 py-1.5 text-left text-[11px] transition-colors hover:bg-muted/50",
+                            selectedModel.provider === opt.provider && selectedModel.model === opt.model && "text-primary",
+                          )}
+                        >
+                          <span>{opt.label}</span>
+                          <span className="text-[9px] text-muted-foreground/40">{opt.badge}</span>
+                        </button>
+                      ))}
+                    </div>
+                    {/* Local / self-hosted — free text input per provider */}
+                    <div className="border-t border-border/30 px-2 pt-2 pb-2">
+                      <p className="px-1 pb-1 text-[9px] font-medium uppercase tracking-wider text-muted-foreground/40">Local / self-hosted</p>
+                      {LOCAL_PROVIDERS.map(({ provider, badge }) => (
+                        <div key={provider} className="mb-1.5 last:mb-0">
+                          <p className="px-1 pb-0.5 text-[9px] text-muted-foreground/50">{badge}</p>
+                          <div className="flex gap-1">
+                            <input
+                              type="text"
+                              placeholder={provider === "obsidian-ai" ? "model name" : "e.g. llama3.2"}
+                              defaultValue={selectedModel.provider === provider ? selectedModel.model : ""}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") handleLocalModelConfirm(provider, badge, (e.target as HTMLInputElement).value);
+                              }}
+                              className="flex-1 rounded-md border border-border/30 bg-background/60 px-2 py-1 text-[11px] text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:ring-1 focus:ring-primary/40"
+                            />
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                const inp = (e.currentTarget.previousSibling as HTMLInputElement).value;
+                                handleLocalModelConfirm(provider, badge, inp);
+                              }}
+                              className="rounded-md border border-border/30 bg-muted/30 px-2 py-1 text-[10px] text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+                            >
+                              Use
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>

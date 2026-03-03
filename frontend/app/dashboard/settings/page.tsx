@@ -530,7 +530,7 @@ export default function SettingsPage() {
       </header>
 
       <main className="flex-1 overflow-y-auto p-6">
-        <div className="max-w-2xl space-y-8">
+        <div className="space-y-8">
 
         <div>
           <h2 className="text-sm font-semibold mb-1">API Keys</h2>

@@ -111,6 +111,14 @@ def get_model(
                 api_key="lm-studio",
             )
 
+        case "obsidian-ai":
+            from langchain_openai import ChatOpenAI
+            return ChatOpenAI(
+                model=model_id,
+                base_url=base_url,
+                api_key=api_key or "obsidian-ai",
+            )
+
         case _:
             raise ValueError(f"Unknown model provider: {provider!r}")
 
@@ -134,6 +142,13 @@ async def get_model_for_user(
             api_key = await _get_vault_key(user_id, provider)
         elif provider in ("ollama", "lmstudio"):
             base_url = await _get_vault_key(user_id, provider)
+        elif provider == "obsidian-ai":
+            import json as _json
+            raw = await _get_vault_key(user_id, "obsidian-ai")
+            if raw:
+                cfg = _json.loads(raw)
+                base_url = cfg.get("url", "").rstrip("/") + "/v1"
+                api_key = cfg.get("api_key") or cfg.get("api_secret") or "obsidian-ai"
     except Exception as exc:
         logger.debug("Vault key lookup failed for %s/%s: %s", user_id, provider, exc)
 

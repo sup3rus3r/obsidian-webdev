@@ -310,7 +310,10 @@ class Agent:
             for b in msg.content
             if b.type == "tool_use"
         ]
-        messages.append({"role": "assistant", "content": msg.content})
+        messages.append({"role": "assistant", "content": [
+            {k: v for k, v in b.model_dump().items() if v is not None}
+            for b in msg.content
+        ]})
 
         if not tool_calls:
             await self.on_event({"type": "done", "content": text})

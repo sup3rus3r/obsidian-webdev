@@ -51,7 +51,7 @@ async def start_container(
     framework = project.get("framework", "blank")
     had_container = bool(project.get("container_id"))
 
-    container_id, host_port = await get_or_create_container(project_id, framework)
+    container_id, host_port, host_ports = await get_or_create_container(project_id, framework)
 
     files_restored = 0
     if not had_container:

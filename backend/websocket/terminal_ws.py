@@ -150,51 +150,98 @@ async def _bridge_pty(websocket: WebSocket, container_id: str) -> None:
             pass
 
 
-async def _bridge_pipe(websocket: WebSocket, container_id: str) -> None:
-    """PIPE-backed bridge (Windows fallback — no PTY, no colors).
+async def _run(container_id: str, *args: str) -> None:
+    """Fire-and-forget non-interactive docker exec. Never raises."""
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "docker", "exec", container_id, *args,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        await proc.wait()
+    except Exception:
+        pass
 
-    Basic stdin/stdout piping without PTY allocation.
-    Shell input/output works but colour codes and cursor keys are not emulated.
+
+async def _bridge_pipe(websocket: WebSocket, container_id: str) -> None:
+    """TTY-free terminal bridge for Windows (no host PTY available).
+
+    Uses subprocess.Popen (blocking) via run_in_executor so it works under
+    uvicorn's SelectorEventLoop on Windows.  asyncio.create_subprocess_exec
+    requires ProactorEventLoop which uvicorn does not use on Windows.
+
+    docker exec -i with //bin/sh keeps stdin open as long as the pipe is open.
     """
-    proc = await asyncio.create_subprocess_exec(
-        "docker", "exec", "-i", container_id, "/bin/sh",
-        stdin=asyncio.subprocess.PIPE,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.STDOUT,
+    import subprocess
+    import threading
+
+    loop = asyncio.get_event_loop()
+
+    # Start the subprocess synchronously in a thread so we don't need ProactorEventLoop.
+    proc = await loop.run_in_executor(
+        None,
+        lambda: subprocess.Popen(
+            [
+                "docker", "exec", "-i",
+                "-e", "TERM=xterm-256color",
+                "-w", "//workspace",
+                container_id,
+                "//bin/sh",
+            ],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        ),
     )
 
+    stop_event = threading.Event()
+
     async def _read_output() -> None:
+        """Read stdout in executor (blocking read), forward to WebSocket."""
         while True:
             try:
-                chunk = await proc.stdout.read(4096)
+                chunk = await loop.run_in_executor(None, proc.stdout.read, 4096)
                 if not chunk:
                     break
                 await websocket.send_bytes(chunk)
-            except (OSError, WebSocketDisconnect):
+            except (OSError, WebSocketDisconnect, RuntimeError):
                 break
+        stop_event.set()
 
-    async def _write_input() -> None:
+    async def _handle_input() -> None:
+        """Receive WebSocket frames and write to process stdin."""
         while True:
             try:
                 frame = await websocket.receive()
                 if frame.get("type") == "websocket.disconnect":
                     break
                 if "bytes" in frame:
-                    proc.stdin.write(frame["bytes"])
-                    await proc.stdin.drain()
+                    try:
+                        await loop.run_in_executor(None, proc.stdin.write, frame["bytes"])
+                        await loop.run_in_executor(None, proc.stdin.flush)
+                    except (OSError, BrokenPipeError):
+                        break
+                # resize events are ignored in pipe mode (no PTY to resize)
             except (OSError, WebSocketDisconnect, RuntimeError):
                 break
+        stop_event.set()
 
     tasks = [
         asyncio.create_task(_read_output()),
-        asyncio.create_task(_write_input()),
+        asyncio.create_task(_handle_input()),
     ]
-    _done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
-    for t in pending:
-        t.cancel()
-
-    if proc.returncode is None:
-        proc.terminate()
+    try:
+        await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+    finally:
+        for t in tasks:
+            t.cancel()
+        stop_event.set()
+        try:
+            proc.stdin.close()
+        except Exception:
+            pass
+        if proc.poll() is None:
+            proc.kill()
 
 
 @router.websocket("/ws/terminal/{project_id}")
@@ -211,8 +258,11 @@ async def terminal_ws(
         await websocket.close(code=4001, reason="Unauthorized")
         return
 
-    db = get_database()
-    project = await ProjectCollection.find_by_id(db, project_id)
+    try:
+        db = get_database()
+        project = await ProjectCollection.find_by_id(db, project_id)
+    except Exception:
+        project = None
     if not project or project.get("owner_id") != user.user_id:
         await websocket.accept()
         await websocket.close(code=4004, reason="Project not found")

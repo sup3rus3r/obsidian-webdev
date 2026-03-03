@@ -14,7 +14,7 @@ class UserCreate(BaseModel):
     username: str
     email: EmailStr
     password: str
-    role: str = "guest"
+    role: str = "admin"
 
 
 class UserLogin(BaseModel):

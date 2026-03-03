@@ -55,11 +55,23 @@ def _auth_token(token: str) -> TokenData:
 async def _get_api_key(db, user_id: str, model_provider: str) -> str:
     """Retrieve the user's API key for the provider from the vault, falling back to env vars."""
     try:
-        from models.mongo_models import UserSecretCollection
         from core.vault import decrypt_secret
-        secret = await UserSecretCollection.find_by_provider(db, user_id, model_provider)
-        if secret:
-            return decrypt_secret(user_id, secret["encrypted_value"], secret.get("key_version", 1))
+        if settings.DATABASE_TYPE == "mongo":
+            from models.mongo_models import UserSecretCollection
+            secret = await UserSecretCollection.find_by_provider(db, user_id, model_provider)
+            if secret:
+                return decrypt_secret(user_id, secret["encrypted_value"], secret.get("key_version", 1))
+        else:
+            from database.sql import SessionLocal
+            from models.sql_models import UserSecret
+            with SessionLocal() as sql_db:
+                row = sql_db.query(UserSecret).filter(
+                    UserSecret.user_id == int(user_id),
+                    UserSecret.provider == model_provider,
+                    UserSecret.is_deleted.is_(False),
+                ).first()
+                if row:
+                    return decrypt_secret(user_id, row.encrypted_value, row.key_version)
     except Exception:
         pass
     env_map = {

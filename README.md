@@ -353,33 +353,114 @@ Docker container (one per project)
 
 ### Prerequisites
 
-- Docker installed and running
-  - Linux: `sudo usermod -aG docker $USER` then reboot
-- Node.js 18 or later
-- Python 3.12 or later
-- [`uv`](https://docs.astral.sh/uv/) package manager
-- MongoDB (local or Atlas)
+| Requirement | Windows | Linux / macOS |
+|-------------|---------|---------------|
+| **Docker Desktop** | [Download](https://www.docker.com/products/docker-desktop/) — must be running | `sudo usermod -aG docker $USER` then reboot |
+| **Node.js 18+** | [Download](https://nodejs.org/) or `winget install OpenJS.NodeJS` | Package manager of choice |
+| **Python 3.12+** | [Download](https://www.python.org/downloads/) or `winget install Python.Python.3.12` | `apt install python3.12` / `brew install python@3.12` |
+| **uv** | `winget install astral-sh.uv` or `pip install uv` | `curl -Lsf https://astral.sh/uv/install.sh \| sh` |
+| **MongoDB** | Local via Docker (see Step 3) or [MongoDB Atlas](https://www.mongodb.com/atlas) (free tier) | Same |
 
-### Installation
+---
+
+### Step 1 — Clone the repository
 
 ```bash
-# Clone the repository
 git clone https://github.com/sup3rus3r/obsidian-webdev.git
 cd obsidian-webdev
+```
 
-# Install root dependencies (concurrently)
+---
+
+### Step 2 — Install dependencies
+
+```bash
 npm install
-
-# Install frontend dependencies
 cd frontend && npm install && cd ..
-
-# Install backend dependencies
 cd backend && uv sync && cd ..
 ```
 
-### Docker Base Image
+---
 
-Build the base image once. All project containers are created from this image.
+### Step 3 — Start MongoDB (if not using Atlas)
+
+If you don't have a MongoDB Atlas connection string, run a local instance via Docker:
+
+```bash
+docker run -d --name mongodb --restart unless-stopped -p 27017:27017 mongo:latest
+```
+
+> Already have Atlas? Skip this step and put your Atlas URI in `backend/.env` as `MONGO_URL`.
+
+---
+
+### Step 4 — Configure environment variables
+
+**Backend:**
+
+```bash
+# Linux / macOS
+cp backend/.env.example backend/.env
+
+# Windows (PowerShell)
+copy backend\.env.example backend\.env
+```
+
+**Frontend:**
+
+```bash
+# Linux / macOS
+cp frontend/.env.example frontend/.env.local
+
+# Windows (PowerShell)
+copy frontend\.env.example frontend\.env.local
+```
+
+Generate the required secret keys:
+
+```bash
+# Linux / macOS — JWT_SECRET_KEY and ENCRYPTION_KEY
+openssl rand -hex 32
+
+# Windows (PowerShell) — JWT_SECRET_KEY and ENCRYPTION_KEY
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+
+# Any platform — FERNET_MASTER_KEY
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
+Fill in `backend/.env` with your generated values:
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DATABASE_TYPE` | Yes | `sqlite` (default) or `mongo` |
+| `SQLITE_URL` | If SQLite | e.g. `sqlite:///./obsidian.db` |
+| `MONGO_URL` | Yes | MongoDB connection string |
+| `MONGO_DB_NAME` | Yes | MongoDB database name |
+| `JWT_SECRET_KEY` | Yes | Random secret for JWT signing |
+| `ENCRYPTION_KEY` | Yes | 32-byte hex key for AES encryption |
+| `FERNET_MASTER_KEY` | Yes | Fernet key for vault encryption |
+| `CORS_ORIGINS` | No | Default: `["http://localhost:3100"]` |
+| `ANTHROPIC_API_KEY` | No | Fallback if user has no vault key |
+| `OPENAI_API_KEY` | No | Fallback if user has no vault key |
+| `TAVILY_API_KEY` | No | Web search — falls back to DuckDuckGo |
+| `PROJECTS_DATA_DIR` | No | Default: `./data/projects` |
+| `DOCKER_SOCKET` | No | Leave empty on Windows (Docker Desktop handles this) |
+
+Fill in `frontend/.env.local`:
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `AUTH_SECRET` | Yes | NextAuth secret — any random 32-byte hex string |
+| `NEXT_PUBLIC_API_URL` | No | Default: `http://localhost:8100` |
+| `NEXT_PUBLIC_WS_URL` | No | Default: `ws://localhost:8100` |
+| `NEXT_PUBLIC_ENCRYPTION_KEY` | Yes | Must match `ENCRYPTION_KEY` in `backend/.env` |
+
+---
+
+### Step 5 — Build the Docker base image (one-time, ~3 min)
+
+All project containers are created from this image. Build it once; rebuild only if `backend/Dockerfile.base` changes.
 
 ```bash
 docker build -f backend/Dockerfile.base -t obsidian-webdev-base:latest backend/
@@ -387,68 +468,38 @@ docker build -f backend/Dockerfile.base -t obsidian-webdev-base:latest backend/
 
 The image includes: Ubuntu 24.04, Node.js 22, npm 10, bun 1.3, Python 3.12, uv, git, curl, tmux.
 
-### Running the App
+---
+
+### Step 6 — Start the app
 
 ```bash
 npm run dev
 ```
 
-This starts both servers concurrently:
+This single command:
+1. Syncs backend Python dependencies (fast/idempotent)
+2. Starts the **Qdrant** vector DB container (`obsidian-qdrant` on port `6333`)
+3. Starts the **frontend** and **backend** concurrently
 
 | Service | URL |
 |---------|-----|
-| Frontend | http://localhost:3000 |
+| Frontend | http://localhost:3100 |
 | Backend API | http://localhost:8100 |
 | API docs (Swagger) | http://localhost:8100/docs |
 
-### Environment Variables
+> `npm run dev` uses a cross-platform Node script and works on Windows, Linux, and macOS without requiring bash or WSL.
 
-**Backend — `backend/.env`**
+---
 
-```bash
-cp backend/.env.example backend/.env
-```
+### What's running
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `DATABASE_TYPE` | Yes | `sqlite` or `mongo` |
-| `SQLITE_URL` | If SQLite | e.g. `sqlite:///./obsidian.db` |
-| `MONGO_URL` | Yes | MongoDB connection string |
-| `MONGO_DB_NAME` | Yes | MongoDB database name |
-| `JWT_SECRET_KEY` | Yes | Random secret for JWT signing |
-| `JWT_ALGORITHM` | No | Default: `HS256` |
-| `ENCRYPTION_KEY` | Yes | 32-byte hex key for AES encryption |
-| `FERNET_MASTER_KEY` | Yes | Fernet key for vault encryption |
-| `ANTHROPIC_API_KEY` | No | Fallback if user has no vault key |
-| `OPENAI_API_KEY` | No | Fallback if user has no vault key |
-| `OLLAMA_BASE_URL` | No | Default: `http://localhost:11434` |
-| `LMSTUDIO_BASE_URL` | No | Default: `http://localhost:1234` |
-| `TAVILY_API_KEY` | No | Web search — falls back to DuckDuckGo |
-| `PROJECTS_DATA_DIR` | No | Default: `./data/projects` |
-| `CORS_ORIGINS` | No | Comma-separated allowed origins |
-
-Generate keys:
-
-```bash
-# JWT_SECRET_KEY, ENCRYPTION_KEY
-openssl rand -hex 32
-
-# FERNET_MASTER_KEY
-python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
-```
-
-**Frontend — `frontend/.env.local`**
-
-```bash
-cp frontend/.env.example frontend/.env.local
-```
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `AUTH_SECRET` | Yes | NextAuth secret (use `openssl rand -hex 32`) |
-| `NEXT_PUBLIC_API_URL` | No | Default: `http://localhost:8100` |
-| `NEXT_PUBLIC_WS_URL` | No | Default: `ws://localhost:8100` |
-| `NEXT_PUBLIC_ENCRYPTION_KEY` | Yes | Must match backend `ENCRYPTION_KEY` |
+| Service | Port | Started by |
+|---------|------|------------|
+| Frontend (Next.js) | 3100 | `npm run dev` |
+| Backend (FastAPI) | 8100 | `npm run dev` |
+| Qdrant (vector DB) | 6333 | Docker — auto-started by `npm run dev` |
+| MongoDB | 27017 | Docker — started in Step 3 (or Atlas) |
+| Project containers | dynamic | Created on-demand per project |
 
 ---
 

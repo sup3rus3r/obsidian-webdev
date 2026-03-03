@@ -5,6 +5,9 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
+# Ensure uv is on PATH (installed to ~/.local/bin on Windows/Linux)
+export PATH="$HOME/.local/bin:$PATH"
+
 cleanup() {
   # Remove trap first to prevent double-run on EXIT + INT
   trap - INT TERM EXIT

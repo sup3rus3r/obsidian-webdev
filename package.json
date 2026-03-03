@@ -4,10 +4,10 @@
   "description": "AI-powered full-stack platform builder",
   "main": "index.js",
   "scripts": {
-    "dev": "bash scripts/dev.sh",
+    "dev": "node scripts/dev.js",
     "api": "cd backend && uv run uvicorn main:app --reload",
-    "services": "bash scripts/start-services.sh",
-    "services:down": "docker stop obsidian-qdrant 2>/dev/null || true"
+    "services": "node scripts/start-services.js",
+    "services:down": "docker stop obsidian-qdrant"
   },
   "keywords": [],
   "author": "",
