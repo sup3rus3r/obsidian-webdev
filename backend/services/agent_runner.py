@@ -189,7 +189,7 @@ async def start_agent(
         future: asyncio.Future = loop.create_future()
         session.pending_approvals[approval_id] = future
         try:
-            return await asyncio.wait_for(asyncio.shield(future), timeout=300)
+            return await asyncio.wait_for(asyncio.shield(future), timeout=1800)
         except asyncio.TimeoutError:
             return False
         finally:
@@ -200,9 +200,9 @@ async def start_agent(
         future: asyncio.Future = loop.create_future()
         session.pending_clarifications[clarification_id] = future
         try:
-            return await asyncio.wait_for(asyncio.shield(future), timeout=300)
+            return await asyncio.wait_for(asyncio.shield(future), timeout=1800)
         except asyncio.TimeoutError:
-            return "(clarification timed out)"
+            return "(clarification timed out — proceeding with best assumption)"
         finally:
             session.pending_clarifications.pop(clarification_id, None)
 

@@ -573,11 +573,18 @@ export function AgentChat({
       }
     } catch {}
     // Fall back to project default, then global default
-    return (
-      CLOUD_PRESETS.find(
+    if (defaultModelProvider && defaultModelId) {
+      const preset = CLOUD_PRESETS.find(
         (o) => o.provider === defaultModelProvider && o.model === defaultModelId,
-      ) ?? DEFAULT_MODEL
-    );
+      );
+      if (preset) return preset;
+      // Local providers (lmstudio, ollama, obsidian-ai) aren't in CLOUD_PRESETS
+      if (LOCAL_PROVIDER_IDS.includes(defaultModelProvider as typeof LOCAL_PROVIDER_IDS[number])) {
+        const lp = LOCAL_PROVIDERS.find((p) => p.provider === defaultModelProvider)!;
+        return { provider: defaultModelProvider, model: defaultModelId, label: defaultModelId, badge: lp.badge };
+      }
+    }
+    return DEFAULT_MODEL;
   });
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
   const [attachments, setAttachments] = useState<ParsedAttachment[]>([]);

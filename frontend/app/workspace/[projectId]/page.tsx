@@ -91,6 +91,8 @@ export default function WorkspacePage() {
 
   const editorValueRef = useRef("");
   const newFileInputRef = useRef<HTMLInputElement>(null);
+  const prevBuildRunningRef = useRef(false);
+  const prevPreviewUrlRef = useRef<string | null>(null);
 
   const activeTab = openTabs.find((t) => t.path === activeTabPath) ?? null;
   editorValueRef.current = activeTab?.content ?? "";
@@ -384,6 +386,19 @@ export default function WorkspacePage() {
 
   }, [project?.status, session?.accessToken, projectId]);
 
+
+  // Auto-reload iframe when a build finishes or the preview URL first appears
+  useEffect(() => {
+    const buildJustFinished = prevBuildRunningRef.current && !isBuildRunning;
+    const urlJustAppeared = previewUrl !== null && prevPreviewUrlRef.current === null;
+
+    if ((buildJustFinished || urlJustAppeared) && previewUrl) {
+      setPreviewIframeKey((k) => k + 1);
+    }
+
+    prevBuildRunningRef.current = isBuildRunning;
+    prevPreviewUrlRef.current = previewUrl;
+  }, [isBuildRunning, previewUrl]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {

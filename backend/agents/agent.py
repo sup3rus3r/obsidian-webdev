@@ -42,7 +42,7 @@ _CONTEXT_LIMITS: dict[str, int] = {
     "o3": 200_000,
     "o4-mini": 200_000,
 }
-_DEFAULT_LOCAL_LIMIT = 8_000
+_DEFAULT_LOCAL_LIMIT = 32_000
 _PRUNE_THRESHOLD = 0.60
 _COMPACT_THRESHOLD = 0.80
 _COMPACT_KEEP_RECENT = 8
@@ -51,7 +51,7 @@ _PRUNE_RESULT_MAX = 500
 _MAX_BASH_LINES = 400
 _MAX_FILE_LINES = 500
 _MAX_WEB_CHARS = 20_000
-_MAX_ITERATIONS = 50
+_MAX_ITERATIONS = None  # No cap — run until the model declares done or user stops
 
 
 def _load_system_prompt() -> str:
@@ -154,7 +154,8 @@ class Agent:
         """
         messages.append({"role": "user", "content": prompt})
 
-        for _ in range(_MAX_ITERATIONS):
+        import itertools
+        for _ in itertools.count() if _MAX_ITERATIONS is None else range(_MAX_ITERATIONS):
             if stop_event.is_set():
                 await self.on_event({"type": "stopped"})
                 return
@@ -188,7 +189,7 @@ class Agent:
             if done or stop_event.is_set():
                 return
 
-        await self.on_event({"type": "done", "content": "Task complete (reached iteration limit)."})
+        # Unreachable when _MAX_ITERATIONS is None — loop only exits via return above
 
 
     async def _llm_call(self, messages: list[dict]) -> dict:
