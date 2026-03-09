@@ -438,15 +438,35 @@ TEMPLATE_COMMANDS: dict[str, str] = {
 }
 
 
-async def inject_template(container_id: str, framework: str) -> tuple[int, str]:
+async def inject_template(container_id: str, framework: str, github_url: str | None = None) -> tuple[int, str]:
     """Scaffold boilerplate by running framework CLI commands inside the container.
 
     Only called on first run of a brand-new project (no existing files).
     Commands can take 30-90s (npx, git clone) — always call from a background task.
     CI=1 suppresses interactive prompts in npm/npx CLIs.
+
+    If github_url is provided (GitHub import), clones the repo instead of scaffolding.
     """
     import logging
     logger = logging.getLogger(__name__)
+
+    if github_url:
+        cmd = f"git clone --depth 1 {github_url} ."
+        logger.info("Cloning GitHub repo %s into container %s", github_url, container_id)
+
+        def _run_clone():
+            client = get_docker_client()
+            container = client.containers.get(container_id)
+            exit_code, output = container.exec_run(
+                cmd=["bash", "-c", f"umask 0000; {cmd}"],
+                workdir="/workspace",
+                stream=False,
+                demux=False,
+            )
+            text = output.decode("utf-8", errors="replace") if output else ""
+            return exit_code, text
+
+        return await asyncio.to_thread(_run_clone)
 
     cmd = TEMPLATE_COMMANDS.get(framework)
     if not cmd:

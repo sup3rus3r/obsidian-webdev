@@ -2,6 +2,7 @@ import { apiFetch, apiUrl } from "./client";
 import type {
   Project,
   ProjectCreate,
+  ProjectImportGitHub,
   ProjectListResponse,
   ProjectUpdate,
 } from "@/types/api";
@@ -23,6 +24,30 @@ export async function createProject(
   token: string,
 ): Promise<Project> {
   return apiFetch<Project>("/projects", { method: "POST", body: data, token });
+}
+
+export async function importFromGitHub(
+  data: ProjectImportGitHub,
+  token: string,
+): Promise<Project> {
+  return apiFetch<Project>("/projects/import/github", { method: "POST", body: data, token });
+}
+
+export async function importFromZip(
+  formData: FormData,
+  token: string,
+): Promise<Project> {
+  const res = await fetch(apiUrl("/projects/import/zip"), {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  });
+  if (!res.ok) {
+    let detail = res.statusText;
+    try { detail = (await res.json())?.detail ?? detail; } catch { }
+    throw new Error(detail);
+  }
+  return res.json() as Promise<Project>;
 }
 
 export async function updateProject(

@@ -11,19 +11,19 @@ from fastapi import HTTPException
 from config import settings
 from database.mongo import get_database
 from models.mongo_models import ProjectCollection, ProjectFileCollection
-from schemas.projects import ProjectCreate, ProjectUpdate
+from schemas.projects import ProjectCreate, ProjectImportGitHub, ProjectUpdate
 
 logger = logging.getLogger(__name__)
 
 
-async def _inject_template_bg(project_id: str, container_id: str, framework: str) -> None:
+async def _inject_template_bg(project_id: str, container_id: str, framework: str, github_url: Optional[str] = None) -> None:
     """Background task: run CLI scaffold commands, sync files to MongoDB, then set status running."""
     from services.container_service import inject_template
     from services.file_service import FileService
 
     db = get_database()
     try:
-        exit_code, output = await inject_template(container_id, framework)
+        exit_code, output = await inject_template(container_id, framework, github_url=github_url)
         if exit_code != 0:
             logger.warning(
                 "Template injection non-zero exit for project %s (exit=%d): %s",
@@ -42,11 +42,15 @@ async def _inject_template_bg(project_id: str, container_id: str, framework: str
     except Exception:
         logger.exception("Template injection error for project %s", project_id)
     finally:
-        await ProjectCollection.update(db, project_id, {
-            "status": "running",
-            "template_ready": True,
-            "updated_at": datetime.now(timezone.utc),
-        })
+        try:
+            await ProjectCollection.update(db, project_id, {
+                "status": "running",
+                "template_ready": True,
+                "updated_at": datetime.now(timezone.utc),
+            })
+        except Exception:
+            # Suppress errors during shutdown (e.g. MongoClient already closed)
+            pass
 
 
 def _to_response(doc: dict) -> dict:
@@ -89,6 +93,124 @@ class ProjectService:
         created = await ProjectCollection.create(db, doc)
 
         os.makedirs(_project_dir(str(created["_id"])), exist_ok=True)
+
+        return _to_response(created)
+
+    @staticmethod
+    async def create_imported_github(owner_id: str, payload: ProjectImportGitHub) -> dict:
+        """Create a project that will be populated by git clone on first run."""
+        db = get_database()
+        existing = await db["projects"].find_one(
+            {"owner_id": owner_id, "name": payload.name}
+        )
+        if existing:
+            raise HTTPException(status_code=409, detail="A project with that name already exists")
+
+        now = datetime.now(timezone.utc)
+        doc = {
+            "owner_id": owner_id,
+            "name": payload.name,
+            "description": payload.description,
+            "framework": "blank",
+            "model_provider": payload.model_provider,
+            "model_id": payload.model_id,
+            "status": "idle",
+            "build_status": "none",
+            "container_id": None,
+            "host_port": None,
+            "github_url": payload.github_url,
+            "created_at": now,
+            "updated_at": now,
+        }
+        created = await ProjectCollection.create(db, doc)
+        os.makedirs(_project_dir(str(created["_id"])), exist_ok=True)
+        return _to_response(created)
+
+    @staticmethod
+    async def create_imported_zip(
+        owner_id: str,
+        name: str,
+        description: str,
+        model_provider: str,
+        model_id: str,
+        zip_bytes: bytes,
+    ) -> dict:
+        """Create a project and extract the uploaded zip into its directory."""
+        import zipfile
+        from io import BytesIO
+
+        db = get_database()
+        existing = await db["projects"].find_one({"owner_id": owner_id, "name": name})
+        if existing:
+            raise HTTPException(status_code=409, detail="A project with that name already exists")
+
+        now = datetime.now(timezone.utc)
+        doc = {
+            "owner_id": owner_id,
+            "name": name,
+            "description": description,
+            "framework": "blank",
+            "model_provider": model_provider,
+            "model_id": model_id,
+            "status": "idle",
+            "build_status": "none",
+            "container_id": None,
+            "host_port": None,
+            "template_ready": True,
+            "created_at": now,
+            "updated_at": now,
+        }
+        created = await ProjectCollection.create(db, doc)
+        project_id = str(created["_id"])
+        project_dir = _project_dir(project_id)
+        os.makedirs(project_dir, exist_ok=True)
+
+        _EXCLUDE_DIRS = frozenset({
+            "node_modules", ".git", ".next", "__pycache__", ".venv", "venv",
+            ".mypy_cache", ".pytest_cache", "dist", "build", ".turbo",
+            ".cache", "coverage", ".yarn",
+        })
+
+        def _extract():
+            with zipfile.ZipFile(BytesIO(zip_bytes)) as zf:
+                # Detect common root prefix (e.g. repo-main/)
+                names = zf.namelist()
+                prefix = ""
+                if names:
+                    parts = names[0].split("/")
+                    if len(parts) > 1 and all(n.startswith(parts[0] + "/") for n in names if n):
+                        prefix = parts[0] + "/"
+
+                for member in zf.infolist():
+                    rel = member.filename
+                    if prefix:
+                        rel = rel[len(prefix):]
+                    if not rel:
+                        continue
+                    # Skip excluded directories
+                    parts = rel.split("/")
+                    if any(p in _EXCLUDE_DIRS for p in parts[:-1]):
+                        continue
+                    # Skip .env files
+                    filename = parts[-1]
+                    if filename == ".env" or filename.endswith(".env"):
+                        continue
+                    dest = os.path.join(project_dir, rel)
+                    if member.is_dir():
+                        os.makedirs(dest, exist_ok=True)
+                    else:
+                        os.makedirs(os.path.dirname(dest), exist_ok=True)
+                        with zf.open(member) as src, open(dest, "wb") as dst:
+                            dst.write(src.read())
+
+        await asyncio.to_thread(_extract)
+
+        # Sync extracted files to MongoDB
+        try:
+            from services.file_service import FileService
+            await FileService.sync_from_volume(project_id)
+        except Exception:
+            logger.exception("File sync error after zip import for project %s", project_id)
 
         return _to_response(created)
 
@@ -142,6 +264,7 @@ class ProjectService:
 
         framework = doc.get("framework", "blank")
         template_ready = doc.get("template_ready", False)
+        github_url = doc.get("github_url")
 
         try:
             container_id, host_port, host_ports = await get_or_create_container(project_id, framework)
@@ -152,7 +275,7 @@ class ProjectService:
 
 
         file_count = await ProjectFileCollection.count_by_project(db, project_id)
-        needs_template = framework != "blank" and not template_ready and file_count == 0
+        needs_template = (framework != "blank" or github_url) and not template_ready and file_count == 0
 
         needs_sync = template_ready and file_count == 0
 
@@ -181,7 +304,7 @@ class ProjectService:
                 "updated_at": now,
             })
             asyncio.create_task(
-                _inject_template_bg(project_id, container_id, framework)
+                _inject_template_bg(project_id, container_id, framework, github_url=github_url)
             )
         else:
             updated = await ProjectCollection.update(db, project_id, {

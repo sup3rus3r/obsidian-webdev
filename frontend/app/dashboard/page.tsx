@@ -5,8 +5,8 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
-import { listProjects, createProject, deleteProject } from "@/lib/api/projects";
-import type { Project, ProjectCreate, Framework, ModelProvider } from "@/types/api";
+import { listProjects, createProject, deleteProject, importFromGitHub, importFromZip } from "@/lib/api/projects";
+import type { Project, ProjectCreate, ProjectImportGitHub, Framework, ModelProvider } from "@/types/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -49,6 +49,8 @@ import {
   FolderOpen,
   Clock,
   Zap,
+  Github,
+  Upload,
 } from "lucide-react";
 
 
@@ -75,9 +77,18 @@ const PROVIDER_MODELS: Record<ModelProvider, { value: string; label: string }[]>
     { value: "claude-haiku-4-5-20251001", label: "Claude Haiku 4.5" },
   ],
   openai: [
+    { value: "gpt-5.2", label: "GPT-5.2" },
+    { value: "gpt-5.2-pro", label: "GPT-5.2 Pro" },
+    { value: "gpt-5", label: "GPT-5" },
+    { value: "gpt-5-pro", label: "GPT-5 Pro" },
+    { value: "gpt-5-mini", label: "GPT-5 Mini" },
+    { value: "gpt-5-nano", label: "GPT-5 Nano" },
     { value: "gpt-4.1", label: "GPT-4.1" },
     { value: "gpt-4.1-mini", label: "GPT-4.1 Mini" },
+    { value: "gpt-4.1-nano", label: "GPT-4.1 Nano" },
     { value: "o3", label: "o3" },
+    { value: "o3-mini", label: "o3-mini" },
+    { value: "o3-pro", label: "o3-pro" },
     { value: "o4-mini", label: "o4-mini" },
   ],
   ollama: [],
@@ -193,6 +204,62 @@ function ProjectCard({
   );
 }
 
+function ProviderModelFields({
+  provider,
+  modelId,
+  onProviderChange,
+  onModelChange,
+}: {
+  provider: ModelProvider;
+  modelId: string;
+  onProviderChange: (v: ModelProvider) => void;
+  onModelChange: (v: string) => void;
+}) {
+  const models = PROVIDER_MODELS[provider] ?? [];
+  return (
+    <div className="grid grid-cols-2 gap-3">
+      <div className="space-y-1.5">
+        <Label>AI Provider</Label>
+        <Select value={provider} onValueChange={(v) => onProviderChange(v as ModelProvider)}>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {PROVIDERS.map(({ value, label }) => (
+              <SelectItem key={value} value={value}>
+                {label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-1.5">
+        <Label>{provider === "obsidian-ai" ? "Agent / Team ID" : "Model"}</Label>
+        {models.length > 0 ? (
+          <Select value={modelId} onValueChange={onModelChange}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {models.map(({ value, label }) => (
+                <SelectItem key={value} value={value}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <Input
+            placeholder={provider === "obsidian-ai" ? "e.g. my-coding-agent" : "e.g. llama3.2"}
+            value={modelId}
+            onChange={(e) => onModelChange(e.target.value)}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
 function NewProjectDialog({
   onCreated,
 }: {
@@ -201,7 +268,10 @@ function NewProjectDialog({
   const { data: session } = useSession();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState<"build" | "import">("build");
   const [isLoading, setIsLoading] = useState(false);
+
+  // Build new state
   const [form, setForm] = useState<ProjectCreate>({
     name: "",
     description: "",
@@ -210,28 +280,74 @@ function NewProjectDialog({
     model_id: "gpt-4.1",
   });
 
-  const models = PROVIDER_MODELS[form.model_provider!] ?? [];
+  // Import state
+  const [importMode, setImportMode] = useState<"github" | "zip">("github");
+  const [importForm, setImportForm] = useState({
+    name: "",
+    description: "",
+    model_provider: "openai" as ModelProvider,
+    model_id: "gpt-4.1",
+    github_url: "",
+  });
+  const [zipFile, setZipFile] = useState<File | null>(null);
 
   const handleProviderChange = (v: ModelProvider) => {
     const defaultModel = PROVIDER_MODELS[v][0]?.value ?? "";
     setForm((f) => ({ ...f, model_provider: v, model_id: defaultModel }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleImportProviderChange = (v: ModelProvider) => {
+    const defaultModel = PROVIDER_MODELS[v][0]?.value ?? "";
+    setImportForm((f) => ({ ...f, model_provider: v, model_id: defaultModel }));
+  };
+
+  const extractNameFromUrl = (url: string) => {
+    try {
+      const path = new URL(url).pathname;
+      const segments = path.split("/").filter(Boolean);
+      const last = segments[segments.length - 1] ?? "";
+      return last.replace(/\.git$/, "");
+    } catch {
+      return "";
+    }
+  };
+
+  const handleGitHubUrlChange = (url: string) => {
+    setImportForm((f) => {
+      const autoName = extractNameFromUrl(url);
+      return {
+        ...f,
+        github_url: url,
+        name: f.name || autoName,
+      };
+    });
+  };
+
+  const handleZipFileChange = (file: File | null) => {
+    setZipFile(file);
+    if (file) {
+      const autoName = file.name.replace(/\.zip$/i, "");
+      setImportForm((f) => ({ ...f, name: f.name || autoName }));
+    }
+  };
+
+  const resetAndClose = () => {
+    setOpen(false);
+    setTab("build");
+    setForm({ name: "", description: "", framework: "nextjs", model_provider: "openai", model_id: "gpt-4.1" });
+    setImportForm({ name: "", description: "", model_provider: "openai", model_id: "gpt-4.1", github_url: "" });
+    setImportMode("github");
+    setZipFile(null);
+  };
+
+  const handleBuildSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!session?.accessToken) return;
     setIsLoading(true);
     try {
       const project = await createProject(form, session.accessToken);
       onCreated(project);
-      setOpen(false);
-      setForm({
-        name: "",
-        description: "",
-        framework: "nextjs",
-        model_provider: "openai",
-        model_id: "gpt-4.1",
-      });
+      resetAndClose();
       router.push(`/workspace/${project.id}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to create project");
@@ -240,8 +356,52 @@ function NewProjectDialog({
     }
   };
 
+  const handleImportSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!session?.accessToken) return;
+    setIsLoading(true);
+    try {
+      let project: Project;
+      if (importMode === "github") {
+        const payload: ProjectImportGitHub = {
+          name: importForm.name,
+          description: importForm.description,
+          model_provider: importForm.model_provider,
+          model_id: importForm.model_id,
+          github_url: importForm.github_url,
+        };
+        project = await importFromGitHub(payload, session.accessToken);
+      } else {
+        if (!zipFile) {
+          toast.error("Please select a zip file");
+          return;
+        }
+        const fd = new FormData();
+        fd.append("file", zipFile);
+        fd.append("name", importForm.name);
+        fd.append("description", importForm.description);
+        fd.append("model_provider", importForm.model_provider);
+        fd.append("model_id", importForm.model_id);
+        project = await importFromZip(fd, session.accessToken);
+      }
+      onCreated(project);
+      resetAndClose();
+      router.push(`/workspace/${project.id}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to import project");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const importSubmitDisabled =
+    isLoading ||
+    !importForm.name.trim() ||
+    !importForm.model_id.trim() ||
+    (importMode === "github" ? !importForm.github_url.trim() : !zipFile);
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(v) => { if (!v) resetAndClose(); else setOpen(true); }}>
       <DialogTrigger asChild>
         <Button className="gap-1.5">
           <Plus className="h-4 w-4" />
@@ -250,141 +410,258 @@ function NewProjectDialog({
       </DialogTrigger>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Create a new project</DialogTitle>
+          <DialogTitle>
+            {tab === "build" ? "Create a new project" : "Import a project"}
+          </DialogTitle>
           <DialogDescription>
-            Choose a framework and model — Obsidian WebDev will do the rest.
+            {tab === "build"
+              ? "Choose a framework and model — Obsidian WebDev will do the rest."
+              : "Bring in existing code from GitHub or a zip file."}
           </DialogDescription>
         </DialogHeader>
 
-        <form id="new-project-form" onSubmit={handleSubmit} className="space-y-4 py-2">
+        {/* Tab switcher */}
+        <div className="flex gap-1 rounded-lg border bg-muted/40 p-1">
+          <button
+            type="button"
+            onClick={() => setTab("build")}
+            className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+              tab === "build"
+                ? "bg-background shadow-sm text-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Build new
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab("import")}
+            className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+              tab === "import"
+                ? "bg-background shadow-sm text-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Import existing
+          </button>
+        </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="proj-name">Project name</Label>
-            <Input
-              id="proj-name"
-              placeholder="My awesome app"
-              value={form.name}
-              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-              required
-            />
-          </div>
-
-
-          <div className="space-y-1.5">
-            <Label htmlFor="proj-desc">
-              Description{" "}
-              <span className="text-muted-foreground font-normal">(optional)</span>
-            </Label>
-            <Textarea
-              id="proj-desc"
-              placeholder="What does this project do?"
-              rows={2}
-              value={form.description}
-              onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-              className="resize-none"
-            />
-          </div>
-
-
-          <div className="space-y-1.5">
-            <Label>Framework</Label>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              {FRAMEWORKS.map(({ value, label, desc }) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => setForm((f) => ({ ...f, framework: value }))}
-                  className={`rounded-lg border p-3 text-left transition-colors hover:border-primary/50 ${
-                    form.framework === value
-                      ? "border-primary bg-primary/10"
-                      : "border-border"
-                  }`}
-                >
-                  <p className="text-xs font-medium">{label}</p>
-                  <p className="mt-0.5 text-[10px] text-muted-foreground leading-snug">
-                    {desc}
-                  </p>
-                </button>
-              ))}
-            </div>
-          </div>
-
-
-          <div className="grid grid-cols-2 gap-3">
+        {tab === "build" ? (
+          <form id="new-project-form" onSubmit={handleBuildSubmit} className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <Label>AI Provider</Label>
-              <Select
-                value={form.model_provider}
-                onValueChange={(v) => handleProviderChange(v as ModelProvider)}
+              <Label htmlFor="proj-name">Project name</Label>
+              <Input
+                id="proj-name"
+                placeholder="My awesome app"
+                value={form.name}
+                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                required
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="proj-desc">
+                Description{" "}
+                <span className="text-muted-foreground font-normal">(optional)</span>
+              </Label>
+              <Textarea
+                id="proj-desc"
+                placeholder="What does this project do?"
+                rows={2}
+                value={form.description}
+                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                className="resize-none"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Framework</Label>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {FRAMEWORKS.map(({ value, label, desc }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setForm((f) => ({ ...f, framework: value }))}
+                    className={`rounded-lg border p-3 text-left transition-colors hover:border-primary/50 ${
+                      form.framework === value
+                        ? "border-primary bg-primary/10"
+                        : "border-border"
+                    }`}
+                  >
+                    <p className="text-xs font-medium">{label}</p>
+                    <p className="mt-0.5 text-[10px] text-muted-foreground leading-snug">
+                      {desc}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <ProviderModelFields
+              provider={form.model_provider!}
+              modelId={form.model_id!}
+              onProviderChange={handleProviderChange}
+              onModelChange={(v) => setForm((f) => ({ ...f, model_id: v }))}
+            />
+          </form>
+        ) : (
+          <form id="new-project-form" onSubmit={handleImportSubmit} className="space-y-4 py-2">
+            {/* Import mode toggle */}
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setImportMode("github")}
+                className={`flex items-center gap-2 rounded-lg border p-3 text-left transition-colors hover:border-primary/50 ${
+                  importMode === "github" ? "border-primary bg-primary/10" : "border-border"
+                }`}
               >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PROVIDERS.map(({ value, label }) => (
-                    <SelectItem key={value} value={value}>
-                      {label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                <Github className="h-4 w-4 shrink-0" />
+                <div>
+                  <p className="text-xs font-medium">GitHub URL</p>
+                  <p className="text-[10px] text-muted-foreground">Clone a public repo</p>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setImportMode("zip")}
+                className={`flex items-center gap-2 rounded-lg border p-3 text-left transition-colors hover:border-primary/50 ${
+                  importMode === "zip" ? "border-primary bg-primary/10" : "border-border"
+                }`}
+              >
+                <Upload className="h-4 w-4 shrink-0" />
+                <div>
+                  <p className="text-xs font-medium">Upload ZIP</p>
+                  <p className="text-[10px] text-muted-foreground">Upload a .zip file</p>
+                </div>
+              </button>
+            </div>
+
+            {importMode === "github" ? (
+              <div className="space-y-1.5">
+                <Label htmlFor="import-url">GitHub repository URL</Label>
+                <Input
+                  id="import-url"
+                  placeholder="https://github.com/owner/repo"
+                  value={importForm.github_url}
+                  onChange={(e) => handleGitHubUrlChange(e.target.value)}
+                  required
+                />
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <Label htmlFor="import-zip">ZIP file</Label>
+                <div
+                  className={`flex items-center justify-center rounded-lg border-2 border-dashed p-6 text-center transition-colors cursor-pointer hover:border-primary/50 ${
+                    zipFile ? "border-primary/50 bg-primary/5" : "border-border"
+                  }`}
+                  onClick={() => document.getElementById("import-zip-input")?.click()}
+                >
+                  {zipFile ? (
+                    <div className="space-y-1">
+                      <Upload className="mx-auto h-5 w-5 text-primary" />
+                      <p className="text-xs font-medium">{zipFile.name}</p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {(zipFile.size / 1024 / 1024).toFixed(1)} MB — click to change
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      <Upload className="mx-auto h-5 w-5 text-muted-foreground" />
+                      <p className="text-xs text-muted-foreground">
+                        Click to select a <span className="font-medium">.zip</span> file
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">Max 100 MB</p>
+                    </div>
+                  )}
+                </div>
+                <input
+                  id="import-zip-input"
+                  type="file"
+                  accept=".zip,application/zip"
+                  className="hidden"
+                  onChange={(e) => handleZipFileChange(e.target.files?.[0] ?? null)}
+                />
+              </div>
+            )}
+
+            <div className="space-y-1.5">
+              <Label htmlFor="import-name">Project name</Label>
+              <Input
+                id="import-name"
+                placeholder="My awesome app"
+                value={importForm.name}
+                onChange={(e) => setImportForm((f) => ({ ...f, name: e.target.value }))}
+                required
+              />
             </div>
 
             <div className="space-y-1.5">
-              <Label>{form.model_provider === "obsidian-ai" ? "Agent / Team ID" : "Model"}</Label>
-              {models.length > 0 ? (
-                <Select
-                  value={form.model_id}
-                  onValueChange={(v) => setForm((f) => ({ ...f, model_id: v }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {models.map(({ value, label }) => (
-                      <SelectItem key={value} value={value}>
-                        {label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <Input
-                  placeholder={
-                    form.model_provider === "obsidian-ai"
-                      ? "e.g. my-coding-agent"
-                      : "e.g. llama3.2"
-                  }
-                  value={form.model_id}
-                  onChange={(e) => setForm((f) => ({ ...f, model_id: e.target.value }))}
-                />
-              )}
+              <Label htmlFor="import-desc">
+                Description{" "}
+                <span className="text-muted-foreground font-normal">(optional)</span>
+              </Label>
+              <Textarea
+                id="import-desc"
+                placeholder="What does this project do?"
+                rows={2}
+                value={importForm.description}
+                onChange={(e) => setImportForm((f) => ({ ...f, description: e.target.value }))}
+                className="resize-none"
+              />
             </div>
-          </div>
-        </form>
+
+            <ProviderModelFields
+              provider={importForm.model_provider}
+              modelId={importForm.model_id}
+              onProviderChange={handleImportProviderChange}
+              onModelChange={(v) => setImportForm((f) => ({ ...f, model_id: v }))}
+            />
+          </form>
+        )}
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)} type="button">
+          <Button variant="outline" onClick={resetAndClose} type="button">
             Cancel
           </Button>
-          <Button
-            type="submit"
-            form="new-project-form"
-            disabled={isLoading || !form.name.trim()}
-            className="gap-1.5"
-          >
-            {isLoading ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Creating…
-              </>
-            ) : (
-              <>
-                <Zap className="h-4 w-4" />
-                Create project
-              </>
-            )}
-          </Button>
+          {tab === "build" ? (
+            <Button
+              type="submit"
+              form="new-project-form"
+              disabled={isLoading || !form.name.trim()}
+              className="gap-1.5"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Creating…
+                </>
+              ) : (
+                <>
+                  <Zap className="h-4 w-4" />
+                  Create project
+                </>
+              )}
+            </Button>
+          ) : (
+            <Button
+              type="submit"
+              form="new-project-form"
+              disabled={importSubmitDisabled}
+              className="gap-1.5"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Importing…
+                </>
+              ) : (
+                <>
+                  <Zap className="h-4 w-4" />
+                  Import project
+                </>
+              )}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

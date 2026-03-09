@@ -2,13 +2,14 @@
 import base64
 import io
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, UploadFile
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, Response, UploadFile
 
 from core.rate_limiter import limiter, user_limit
 from core.security import TokenData, get_current_user
 from schemas.files import FileListItem, FileListResponse, FileWriteRequest, ProjectFileResponse
 from schemas.projects import (
     ProjectCreate,
+    ProjectImportGitHub,
     ProjectListResponse,
     ProjectResponse,
     ProjectUpdate,
@@ -28,6 +29,67 @@ async def create_project(
 ):
     """Create a new project. Name must be unique per user."""
     return await ProjectService.create_project(current_user.user_id, payload)
+
+
+@router.post("/import/github", response_model=ProjectResponse, status_code=201)
+@limiter.limit(user_limit())
+async def import_from_github(
+    payload: ProjectImportGitHub,
+    request: Request,
+    current_user: TokenData = Depends(get_current_user),
+):
+    """Import a project from a public GitHub repository URL.
+
+    The repository is cloned into the container on first run.
+    """
+    return await ProjectService.create_imported_github(current_user.user_id, payload)
+
+
+_MAX_ZIP_MB = 100
+
+
+@router.post("/import/zip", response_model=ProjectResponse, status_code=201)
+@limiter.limit(user_limit())
+async def import_from_zip(
+    request: Request,
+    file: UploadFile,
+    name: str = Form(...),
+    description: str = Form(""),
+    model_provider: str = Form("anthropic"),
+    model_id: str = Form("claude-sonnet-4-6"),
+    current_user: TokenData = Depends(get_current_user),
+):
+    """Import a project from an uploaded ZIP file.
+
+    node_modules, .git, .env files and other build artifacts are excluded.
+    Files are extracted to the project volume and synced to MongoDB immediately.
+    """
+    if file.content_type not in ("application/zip", "application/x-zip-compressed", "application/octet-stream"):
+        # be lenient — browsers send different MIME types for zips
+        if not (file.filename or "").endswith(".zip"):
+            raise HTTPException(status_code=415, detail="Only .zip files are accepted")
+
+    data = await file.read()
+    if len(data) > _MAX_ZIP_MB * 1024 * 1024:
+        raise HTTPException(status_code=413, detail=f"File too large (max {_MAX_ZIP_MB} MB)")
+
+    name = name.strip()
+    if not name:
+        raise HTTPException(status_code=422, detail="Project name must not be empty")
+    if len(name) > 100:
+        raise HTTPException(status_code=422, detail="Project name must be 100 characters or fewer")
+    model_id = model_id.strip()
+    if not model_id:
+        raise HTTPException(status_code=422, detail="model_id must not be empty")
+
+    return await ProjectService.create_imported_zip(
+        owner_id=current_user.user_id,
+        name=name,
+        description=description,
+        model_provider=model_provider,
+        model_id=model_id,
+        zip_bytes=data,
+    )
 
 
 @router.get("", response_model=ProjectListResponse)

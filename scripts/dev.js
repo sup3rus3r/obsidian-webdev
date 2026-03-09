@@ -35,10 +35,6 @@ const backend = spawn(
   [
     "run", "uvicorn", "main:app",
     "--port", "8100",
-    "--reload",
-    "--reload-dir", BACKEND_DIR,
-    "--reload-exclude", path.join(BACKEND_DIR, ".venv"),
-    "--reload-exclude", path.join(BACKEND_DIR, "data"),
     "--ws-ping-interval", "120",
     "--ws-ping-timeout", "30",
   ],

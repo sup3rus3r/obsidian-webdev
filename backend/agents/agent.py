@@ -37,9 +37,18 @@ _CONTEXT_LIMITS: dict[str, int] = {
     "claude-opus-4-6": 200_000,
     "claude-sonnet-4-6": 200_000,
     "claude-haiku-4-5-20251001": 200_000,
+    "gpt-5.2": 1_000_000,
+    "gpt-5.2-pro": 1_000_000,
+    "gpt-5": 1_000_000,
+    "gpt-5-pro": 1_000_000,
+    "gpt-5-mini": 1_000_000,
+    "gpt-5-nano": 1_000_000,
     "gpt-4.1": 1_000_000,
     "gpt-4.1-mini": 1_000_000,
+    "gpt-4.1-nano": 1_000_000,
     "o3": 200_000,
+    "o3-mini": 200_000,
+    "o3-pro": 200_000,
     "o4-mini": 200_000,
 }
 _DEFAULT_LOCAL_LIMIT = 32_000
@@ -282,7 +291,7 @@ class Agent:
             base_url, api_key = self._resolve_local_client(self.model_provider)
         client = openai.AsyncOpenAI(api_key=api_key, base_url=base_url)
         oai_messages = [{"role": "system", "content": self._system_prompt}, *messages]
-        is_reasoning = self.model_id.startswith(("o1", "o3", "o4"))
+        is_reasoning = self.model_id.startswith(("o1", "o3", "o4", "gpt-5"))
         text_buf = ""
         tool_calls_buf: dict[int, dict] = {}
         finish_reason: str | None = None
@@ -896,9 +905,14 @@ class Agent:
             if self.model_provider in ("ollama", "lmstudio"):
                 base_url, api_key = self._resolve_local_client(self.model_provider)
             client = openai.AsyncOpenAI(api_key=api_key, base_url=base_url)
+            _tok_kwarg = (
+                {"max_completion_tokens": 2048}
+                if self.model_id.startswith(("o1", "o3", "o4", "gpt-5"))
+                else {"max_tokens": 2048}
+            )
             resp = await client.chat.completions.create(
                 model=self.model_id,
                 messages=[{"role": "user", "content": prompt}],
-                max_tokens=2048,
+                **_tok_kwarg,
             )
             return resp.choices[0].message.content or ""

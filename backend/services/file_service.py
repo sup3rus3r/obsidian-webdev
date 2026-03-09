@@ -53,7 +53,7 @@ def _scan_volume(project_dir: str) -> list[str]:
                     continue
             except OSError:
                 continue
-            rel = os.path.relpath(abs_path, project_dir)
+            rel = os.path.relpath(abs_path, project_dir).replace("\\", "/")
             results.append(rel)
     return sorted(results)
 
@@ -100,7 +100,7 @@ def _project_dir(project_id: str) -> str:
 
 def _safe_path(path: str) -> str:
     """Normalise and strip leading slash; raises if traversal detected."""
-    normalised = os.path.normpath(path).lstrip("/")
+    normalised = os.path.normpath(path).replace("\\", "/").lstrip("/")
     if normalised.startswith(".."):
         raise HTTPException(status_code=400, detail="Invalid file path")
     return normalised

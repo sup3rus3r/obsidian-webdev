@@ -44,8 +44,18 @@ interface ModelOption {
 
 // Cloud model presets — extend here to add new models, no other changes needed.
 const CLOUD_PRESETS: ModelOption[] = [
-  { provider: "openai",    model: "gpt-4.1",                   label: "GPT-4.1",       badge: "OpenAI"    },
-  { provider: "openai",    model: "gpt-4.1-mini",              label: "GPT-4.1 mini",  badge: "OpenAI"    },
+  { provider: "openai",    model: "gpt-5.2",                   label: "GPT-5.2",        badge: "OpenAI"    },
+  { provider: "openai",    model: "gpt-5.2-pro",               label: "GPT-5.2 pro",    badge: "OpenAI"    },
+  { provider: "openai",    model: "gpt-5",                     label: "GPT-5",          badge: "OpenAI"    },
+  { provider: "openai",    model: "gpt-5-pro",                 label: "GPT-5 pro",      badge: "OpenAI"    },
+  { provider: "openai",    model: "gpt-5-mini",                label: "GPT-5 mini",     badge: "OpenAI"    },
+  { provider: "openai",    model: "gpt-5-nano",                label: "GPT-5 nano",     badge: "OpenAI"    },
+  { provider: "openai",    model: "gpt-4.1",                   label: "GPT-4.1",        badge: "OpenAI"    },
+  { provider: "openai",    model: "gpt-4.1-mini",              label: "GPT-4.1 mini",   badge: "OpenAI"    },
+  { provider: "openai",    model: "gpt-4.1-nano",              label: "GPT-4.1 nano",   badge: "OpenAI"    },
+  { provider: "openai",    model: "o3",                        label: "o3",             badge: "OpenAI"    },
+  { provider: "openai",    model: "o3-mini",                   label: "o3-mini",        badge: "OpenAI"    },
+  { provider: "openai",    model: "o3-pro",                    label: "o3-pro",         badge: "OpenAI"    },
   { provider: "openai",    model: "o4-mini",                   label: "o4-mini",        badge: "OpenAI"    },
   { provider: "anthropic", model: "claude-sonnet-4-6",         label: "Claude Sonnet", badge: "Anthropic" },
   { provider: "anthropic", model: "claude-opus-4-6",           label: "Claude Opus",   badge: "Anthropic" },

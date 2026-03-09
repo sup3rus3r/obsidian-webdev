@@ -43,6 +43,14 @@ export interface ProjectUpdate {
   model_id?: string;
 }
 
+export interface ProjectImportGitHub {
+  name: string;
+  description?: string;
+  model_provider?: ModelProvider;
+  model_id?: string;
+  github_url: string;
+}
+
 
 export type ProviderType = "anthropic" | "openai" | "ollama" | "lmstudio" | "obsidian-ai";
 

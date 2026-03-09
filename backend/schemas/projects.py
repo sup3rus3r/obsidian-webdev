@@ -1,7 +1,7 @@
 """Project schemas."""
 from datetime import datetime
 from enum import Enum
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, field_validator
 
@@ -44,9 +44,18 @@ PROVIDER_MODELS: dict[str, list[str]] = {
         "claude-haiku-4-5-20251001",
     ],
     "openai": [
+        "gpt-5.2",
+        "gpt-5.2-pro",
+        "gpt-5",
+        "gpt-5-pro",
+        "gpt-5-mini",
+        "gpt-5-nano",
         "gpt-4.1",
         "gpt-4.1-mini",
+        "gpt-4.1-nano",
         "o3",
+        "o3-mini",
+        "o3-pro",
         "o4-mini",
     ],
     "ollama": [],
@@ -77,6 +86,42 @@ class ProjectCreate(BaseModel):
         v = v.strip()
         if not v:
             raise ValueError("model_id must not be empty")
+        return v
+
+
+class ProjectImportGitHub(BaseModel):
+    name: str
+    description: str = ""
+    model_provider: ModelProvider = ModelProvider.anthropic
+    model_id: str = "claude-sonnet-4-6"
+    github_url: str
+
+    @field_validator("name")
+    @classmethod
+    def name_not_empty(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("Project name must not be empty")
+        if len(v) > 100:
+            raise ValueError("Project name must be 100 characters or fewer")
+        return v
+
+    @field_validator("model_id")
+    @classmethod
+    def model_id_not_empty(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("model_id must not be empty")
+        return v
+
+    @field_validator("github_url")
+    @classmethod
+    def github_url_valid(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("github_url must not be empty")
+        if not (v.startswith("https://") or v.startswith("http://")):
+            raise ValueError("github_url must be a valid HTTP/HTTPS URL")
         return v
 
 

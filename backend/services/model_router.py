@@ -33,9 +33,18 @@ CONTEXT_BUDGETS: dict[str, int] = {
     "claude-opus-4-6":           800_000,
     "claude-sonnet-4-6":         800_000,
     "claude-haiku-4-5-20251001": 200_000,
+    "gpt-5.2":                   800_000,
+    "gpt-5.2-pro":               800_000,
+    "gpt-5":                     800_000,
+    "gpt-5-pro":                 800_000,
+    "gpt-5-mini":                800_000,
+    "gpt-5-nano":                800_000,
     "gpt-4.1":                   800_000,
     "gpt-4.1-mini":              800_000,
+    "gpt-4.1-nano":              800_000,
     "o3":                        200_000,
+    "o3-mini":                   200_000,
+    "o3-pro":                    200_000,
     "o4-mini":                   200_000,
 }
 

@@ -49,6 +49,7 @@ Describe what you want to build. A single ReAct agent plans it, writes the code,
   - [Live Workspace](#live-workspace)
   - [Project Isolation via Docker](#project-isolation-via-docker)
   - [Project Templates](#project-templates)
+  - [Project Import](#project-import)
   - [Secrets Vault](#secrets-vault)
   - [User Preferences](#user-preferences)
   - [Security & Authentication](#security--authentication)
@@ -266,6 +267,30 @@ Choose a starting template when creating a project. The agent receives framework
 
 ---
 
+### Project Import
+
+Bring existing code into Obsidian WebDev without starting from scratch. The "New project" dialog has a **Build new / Import existing** tab switcher. Two import modes are supported:
+
+**GitHub URL (clone)**
+
+- Paste any public GitHub repository URL.
+- The project is created immediately and the repo is cloned (`git clone --depth 1`) inside the container when you first click **Run**.
+- The project stays in "Preparing…" while the clone runs, then transitions to "Running" once complete.
+- Project name is auto-filled from the repository slug (editable before import).
+
+**ZIP upload**
+
+- Upload a `.zip` file (up to 100 MB) directly from your machine.
+- Files are extracted to the project volume on the server immediately — no container needed.
+- The following are automatically excluded: `node_modules/`, `.git/`, `.env` / `*.env` files, `.next/`, `dist/`, `build/`, `__pycache__/`, `.venv/`, and other build artifacts.
+- Extracted files are synced to MongoDB so the file tree is available before the container starts.
+- If the zip has a single top-level folder (e.g. `my-repo-main/`), it is stripped automatically so files land at `/workspace/` root.
+- Project name is auto-filled from the zip filename (editable before import).
+
+Both import modes still let you choose the AI provider and model. Imported projects use the **Blank** framework setting — the agent receives no framework-specific scaffolding context, which is appropriate for arbitrary codebases.
+
+---
+
 ### Secrets Vault
 
 Store AI provider API keys in an encrypted vault. Keys are encrypted with AES-256 (Fernet) at rest — the raw value is never accessible after saving.
@@ -458,7 +483,7 @@ Fill in `frontend/.env.local`:
 
 ---
 
-### Step 5 — Build the Docker base image (one-time, ~3 min)
+### Step 5 — Build the Docker base image (one-time, ~3 min) MAKE SURE DOCKER IS RUNNING
 
 All project containers are created from this image. Build it once; rebuild only if `backend/Dockerfile.base` changes.
 
@@ -590,7 +615,7 @@ obsidian-webdev/
     │   ├── page.tsx               # Redirect → dashboard
     │   ├── auth/                  # Login + register pages
     │   └── dashboard/
-    │       ├── page.tsx           # Project list + create modal
+    │       ├── page.tsx           # Project list + create/import modal
     │       ├── workspace/[id]/    # Main workspace (editor + chat + terminal + preview)
     │       ├── settings/          # API keys vault + agent preferences
     │       └── config/            # Profile + password
@@ -628,6 +653,7 @@ See [docs/ROADMAP.md](docs/ROADMAP.md) for full detail and phase-by-phase breakd
 
 - [x] **Docker base image** — Ubuntu 24.04 with Node.js 22, Python 3.12, uv, bun, git, tmux — one image, all frameworks
 - [x] **Project templates** — Next.js, Vite + React, FastAPI, Express, Full-Stack (nextapi), Blank — scaffold via CLI on first run
+- [x] **Project import** — Import existing code from a public GitHub URL (git clone on first run) or a ZIP upload (extracted immediately, node_modules/.env excluded)
 - [x] **Single ReAct agent** — Custom asyncio agent loop; no framework dependency; supports Anthropic + OpenAI streaming and Ollama/LMStudio via OpenAI compat
 - [x] **Full tool set** — `read_file`, `write_file`, `edit_file`, `bash`, `glob`, `grep`, `web_fetch`, `web_search`, `list_files_brief`, `ask_user`
 - [x] **WebSocket streaming** — Typed event protocol; token streaming, tool call events, file change events, history replay on reconnect
