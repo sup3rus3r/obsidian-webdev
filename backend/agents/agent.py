@@ -556,6 +556,8 @@ class Agent:
 
     def _resolve_path(self, path: str) -> str:
         """Resolve a /workspace/... or relative path to a host FS absolute path."""
+        # Normalise any backslashes the model may have used
+        path = path.replace("\\", "/")
         if path.startswith("/workspace"):
             rel = path[len("/workspace"):].lstrip("/")
         else:
@@ -584,7 +586,7 @@ class Agent:
         os.makedirs(os.path.dirname(host_path), exist_ok=True)
         async with aiofiles.open(host_path, "w", encoding="utf-8") as f:
             await f.write(content)
-        rel = os.path.relpath(host_path, self._host_workspace)
+        rel = os.path.relpath(host_path, self._host_workspace).replace("\\", "/")
         db = get_database()
         await ProjectFileCollection.upsert(db, self.project_id, rel, content)
         await self.on_event({"type": "file_changed", "path": f"/workspace/{rel}"})
@@ -607,7 +609,7 @@ class Agent:
         new_content = content.replace(old_string, new_string, 1)
         async with aiofiles.open(host_path, "w", encoding="utf-8") as f:
             await f.write(new_content)
-        rel = os.path.relpath(host_path, self._host_workspace)
+        rel = os.path.relpath(host_path, self._host_workspace).replace("\\", "/")
         db = get_database()
         await ProjectFileCollection.upsert(db, self.project_id, rel, new_content)
         await self.on_event({"type": "file_changed", "path": f"/workspace/{rel}"})
