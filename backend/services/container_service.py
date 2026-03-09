@@ -525,7 +525,7 @@ def _get_container_ip_sync(client: docker.DockerClient, container_id: str) -> st
 async def probe_preview_url(
     container_id: str,
     host_ports: dict[str, int],
-    timeout: float = 2.0,
+    timeout: float = 5.0,
 ) -> str | None:
     """HTTP-probe the container's dev server and return a directly-loadable URL.
 
@@ -542,16 +542,19 @@ async def probe_preview_url(
     "HTTP/" ensures the server is actually ready to serve content.
     """
     _PRIORITY = ["5173", "3000", "8000"]
+    _CONNECT_TIMEOUT = 1.5
+    _READ_TIMEOUT = 3.0
 
     async def _http_probe(host: str, port: int) -> bool:
+        """Return True if host:port responds with an HTTP response line."""
         reader = writer = None
         try:
             reader, writer = await asyncio.wait_for(
-                asyncio.open_connection(host, port), timeout=1.0
+                asyncio.open_connection(host, port), timeout=_CONNECT_TIMEOUT
             )
             writer.write(b"GET / HTTP/1.0\r\nHost: localhost\r\nConnection: close\r\n\r\n")
             await writer.drain()
-            data = await asyncio.wait_for(reader.read(16), timeout=timeout - 1.0)
+            data = await asyncio.wait_for(reader.read(16), timeout=_READ_TIMEOUT)
             return data.startswith(b"HTTP")
         except Exception:
             return False
@@ -563,7 +566,7 @@ async def probe_preview_url(
                 except Exception:
                     pass
 
-
+    # On Linux/macOS probe the container's bridge IP directly (no port mapping needed)
     if sys.platform != "win32":
         try:
             client = get_docker_client()
@@ -574,21 +577,45 @@ async def probe_preview_url(
             container_ip = None
 
         if container_ip:
-            for port_str in _PRIORITY:
-                if await _http_probe(container_ip, int(port_str)):
+            results = await asyncio.gather(
+                *[_http_probe(container_ip, int(p)) for p in _PRIORITY],
+                return_exceptions=True,
+            )
+            for port_str, ok in zip(_PRIORITY, results):
+                if ok is True:
                     return f"http://{container_ip}:{port_str}"
 
+    # On Windows (Docker Desktop) — or Linux fallback — probe via host-mapped ports.
+    # Always do a fresh live lookup from Docker so we never use stale DB values.
+    try:
+        client = get_docker_client()
+        live_ports: dict[str, int] = await asyncio.to_thread(
+            _resolve_all_ports_sync, client, container_id
+        )
+    except Exception:
+        live_ports = {}
+
+    # Merge: live ports take priority; fall back to DB-stored host_ports
+    merged: dict[str, int] = {**host_ports, **live_ports}
 
     candidates: list[tuple[str, int]] = []
     for p in _PRIORITY:
-        if p in host_ports:
-            candidates.append((p, host_ports[p]))
-    for p, hp in host_ports.items():
+        if p in merged:
+            candidates.append((p, merged[p]))
+    for p, hp in merged.items():
         if p not in _PRIORITY:
             candidates.append((p, hp))
 
-    for _cport, host_port in candidates:
-        if await _http_probe("127.0.0.1", host_port):
+    if not candidates:
+        return None
+
+    results = await asyncio.gather(
+        *[_http_probe("127.0.0.1", hp) for _, hp in candidates],
+        return_exceptions=True,
+    )
+    for (cport, _), ok in zip(candidates, results):
+        if ok is True:
+            host_port = merged[cport]
             return f"http://localhost:{host_port}"
 
     return None

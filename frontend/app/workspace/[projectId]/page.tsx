@@ -387,12 +387,16 @@ export default function WorkspacePage() {
   }, [project?.status, session?.accessToken, projectId]);
 
 
-  // Auto-reload iframe when a build finishes or the preview URL first appears
+  // When agent starts a build, clear the stale preview URL so the probe re-discovers it
   useEffect(() => {
-    const buildJustFinished = prevBuildRunningRef.current && !isBuildRunning;
-    const urlJustAppeared = previewUrl !== null && prevPreviewUrlRef.current === null;
+    const buildJustStarted = !prevBuildRunningRef.current && isBuildRunning;
+    if (buildJustStarted) {
+      setProject((p) => (p ? { ...p, preview_url: null } : p));
+    }
 
-    if ((buildJustFinished || urlJustAppeared) && previewUrl) {
+    // Reload iframe when preview URL (re-)appears after a build or container start
+    const urlJustAppeared = previewUrl !== null && prevPreviewUrlRef.current === null;
+    if (urlJustAppeared) {
       setPreviewIframeKey((k) => k + 1);
     }
 

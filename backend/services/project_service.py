@@ -336,6 +336,7 @@ class ProjectService:
 
         updated = await ProjectCollection.update(db, project_id, {
             "status": "stopped",
+            "preview_url": None,
             "updated_at": datetime.now(timezone.utc),
         })
         return _to_response(updated)
