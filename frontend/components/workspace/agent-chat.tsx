@@ -44,6 +44,9 @@ interface ModelOption {
 
 // Cloud model presets — extend here to add new models, no other changes needed.
 const CLOUD_PRESETS: ModelOption[] = [
+  { provider: "openai",    model: "gpt-5.4",                   label: "GPT-5.4",        badge: "OpenAI"    },
+  { provider: "openai",    model: "gpt-5.4-mini",              label: "GPT-5.4 mini",   badge: "OpenAI"    },
+  { provider: "openai",    model: "gpt-5.4-nano",              label: "GPT-5.4 nano",   badge: "OpenAI"    },
   { provider: "openai",    model: "gpt-5.2",                   label: "GPT-5.2",        badge: "OpenAI"    },
   { provider: "openai",    model: "gpt-5.2-pro",               label: "GPT-5.2 pro",    badge: "OpenAI"    },
   { provider: "openai",    model: "gpt-5",                     label: "GPT-5",          badge: "OpenAI"    },
