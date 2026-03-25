@@ -61,8 +61,13 @@ FRAMEWORK_CONFIG: dict[str, dict] = {
     "fullstack": {
         "image": BASE_IMAGE,
         "dev_port": 3000,
-        "install_cmd": "npm install",
-        "build_cmd": "npm run build",
+        "install_cmd": (
+            "pip install uv --quiet 2>/dev/null; "
+            "npm install && "
+            "npm install --prefix frontend && "
+            "cd backend && uv sync --quiet 2>/dev/null; cd .."
+        ),
+        "build_cmd": "npm run build --prefix frontend",
         "dev_cmd": "npm run dev",
         "wait_for": "package.json",
     },
