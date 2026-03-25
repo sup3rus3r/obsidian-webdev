@@ -388,7 +388,9 @@ class ProjectService:
         if not container_id:
             return {"preview_url": None}
 
+        logger.debug("probe_preview_port: project=%s container=%s host_ports=%s", project_id, container_id, host_ports)
         url = await probe_preview_url(container_id, host_ports)
+        logger.debug("probe_preview_port: result url=%s", url)
         if url and url != doc.get("preview_url"):
             await ProjectCollection.update(db, project_id, {"preview_url": url})
         return {"preview_url": url}

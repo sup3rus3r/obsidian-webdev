@@ -34,7 +34,7 @@ const backend = spawn(
   "uv",
   [
     "run", "uvicorn", "main:app",
-    "--port", "8100",
+    "--port", "7412",
     "--ws-ping-interval", "120",
     "--ws-ping-timeout", "30",
   ],

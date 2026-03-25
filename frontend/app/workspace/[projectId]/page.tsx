@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import dynamic from "next/dynamic";
 import { toast } from "sonner";
-import { getProject, runProject, stopProject, exportProject, probePreview } from "@/lib/api/projects";
+import { getProject, runProject, stopProject, exportProject, probePreview, getDevserverLogs } from "@/lib/api/projects";
 import { ApiError } from "@/lib/api/client";
 import { listFiles, getFile, writeFile, buildFileTree } from "@/lib/api/files";
 import type { Project, FileNode } from "@/types/api";
@@ -766,6 +766,8 @@ export default function WorkspacePage() {
                       onCollapse={() => setPreviewExpanded(false)}
                       onReload={() => setPreviewIframeKey((k) => k + 1)}
                       iframeKey={previewIframeKey}
+                      projectId={projectId}
+                      token={session?.accessToken ?? null}
                     />
                   </ResizablePanel>
                 </ResizablePanelGroup>
@@ -826,6 +828,8 @@ function MiniPreview({
   onCollapse,
   onReload,
   iframeKey,
+  projectId,
+  token,
 }: {
   previewUrl: string | null;
   isBuildRunning: boolean;
@@ -836,7 +840,32 @@ function MiniPreview({
   onCollapse: () => void;
   onReload: () => void;
   iframeKey: number;
+  projectId: string;
+  token: string | null;
 }) {
+  const [devLogs, setDevLogs] = useState<string>("");
+  const [showLogs, setShowLogs] = useState(false);
+  const logsTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Poll dev server logs while waiting (no preview URL yet)
+  useEffect(() => {
+    const shouldPoll = !previewUrl && containerRunning && token;
+    if (!shouldPoll) {
+      if (logsTimerRef.current) clearInterval(logsTimerRef.current);
+      if (previewUrl) { setShowLogs(false); setDevLogs(""); }
+      return;
+    }
+    const fetchLogs = async () => {
+      try {
+        const logs = await getDevserverLogs(projectId, token!);
+        setDevLogs(logs);
+      } catch {}
+    };
+    fetchLogs();
+    logsTimerRef.current = setInterval(fetchLogs, 3000);
+    return () => { if (logsTimerRef.current) clearInterval(logsTimerRef.current); };
+  }, [previewUrl, containerRunning, token, projectId]);
+
   return (
     <div className="flex h-full flex-col border-t">
       <div className="flex h-8 shrink-0 items-center justify-between border-b px-2">
@@ -917,12 +946,25 @@ function MiniPreview({
                 Start the container to see the preview
               </p>
             ) : (
-              <>
-                {isProbing && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
-                <p className="text-[11px] text-muted-foreground">
-                  Waiting for dev server…
-                </p>
-              </>
+              <div className="flex h-full w-full flex-col items-center justify-start gap-2 p-3">
+                <div className="flex items-center gap-2">
+                  {isProbing && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+                  <p className="text-[11px] text-muted-foreground">Waiting for dev server…</p>
+                  {devLogs && (
+                    <button
+                      className="text-[10px] text-primary/70 underline hover:text-primary"
+                      onClick={() => setShowLogs((v) => !v)}
+                    >
+                      {showLogs ? "hide logs" : "show logs"}
+                    </button>
+                  )}
+                </div>
+                {(showLogs || (!previewUrl && devLogs)) && devLogs && (
+                  <pre className="w-full flex-1 overflow-auto rounded bg-black/60 p-2 text-[9px] leading-relaxed text-green-400/80 font-mono whitespace-pre-wrap break-all">
+                    {devLogs}
+                  </pre>
+                )}
+              </div>
             )}
           </div>
         )}

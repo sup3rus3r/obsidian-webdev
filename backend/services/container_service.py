@@ -39,7 +39,7 @@ FRAMEWORK_CONFIG: dict[str, dict] = {
         "dev_port": 5173,
         "install_cmd": "npm install",
         "build_cmd": "npm run build",
-        "dev_cmd": "npm run dev -- --host",
+        "dev_cmd": "npm run dev -- --host --port 5173",
         "wait_for": "package.json",
     },
     "nextjs": {
@@ -47,7 +47,7 @@ FRAMEWORK_CONFIG: dict[str, dict] = {
         "dev_port": 3000,
         "install_cmd": "npm install",
         "build_cmd": "npm run build",
-        "dev_cmd": "npm run dev -- -H 0.0.0.0",
+        "dev_cmd": "npm run dev -- -H 0.0.0.0 -p 3000",
         "wait_for": "package.json",
     },
     "fastapi": {
@@ -68,7 +68,7 @@ FRAMEWORK_CONFIG: dict[str, dict] = {
             "cd backend && uv sync --quiet 2>/dev/null; cd .."
         ),
         "build_cmd": "npm run build --prefix frontend",
-        "dev_cmd": "npm run dev",
+        "dev_cmd": "PORT=3000 npm run dev",
         "wait_for": "package.json",
     },
 }
@@ -399,12 +399,19 @@ async def start_dev_server(container_id: str, framework: str) -> None:
 
     wait_loop = f"while [ ! -f /workspace/{wait_for} ]; do sleep 2; done"
 
+    log_file = "/workspace/.devserver.log"
     if install_cmd:
-        inner = f"cd /workspace && {wait_loop} && {install_cmd} > /dev/null 2>&1 && {dev_cmd}"
+        inner = f"cd /workspace && {wait_loop} && {install_cmd} >> {log_file} 2>&1 && {dev_cmd} 2>&1 | tee -a {log_file}"
     else:
-        inner = f"cd /workspace && {wait_loop} && {dev_cmd}"
+        inner = f"cd /workspace && {wait_loop} && {dev_cmd} 2>&1 | tee -a {log_file}"
+
+    dev_port = cfg.get("dev_port", 3000)
+    # Kill anything holding the dev port before starting fresh
+    kill_port = f"fuser -k {dev_port}/tcp 2>/dev/null || true; sleep 0.5"
 
     cmd = (
+        f"rm -f {log_file}; "
+        f"{kill_port}; "
         "tmux kill-session -t devserver 2>/dev/null; "
         f"tmux new-session -d -s devserver '{inner}'"
     )
@@ -661,6 +668,7 @@ async def probe_preview_url(
 
     # Merge: live ports take priority; fall back to DB-stored host_ports
     merged: dict[str, int] = {**host_ports, **live_ports}
+    logger.info("probe_preview_url: container=%s live_ports=%s merged=%s", container_id[:12], live_ports, merged)
 
     candidates: list[tuple[str, int]] = []
     for p in _PRIORITY:
@@ -671,13 +679,16 @@ async def probe_preview_url(
             candidates.append((p, hp))
 
     if not candidates:
+        logger.info("probe_preview_url: no candidates — port mapping missing")
         return None
 
+    logger.info("probe_preview_url: probing candidates=%s", candidates)
     results = await asyncio.gather(
         *[_http_probe("127.0.0.1", hp) for _, hp in candidates],
         return_exceptions=True,
     )
     for (cport, _), ok in zip(candidates, results):
+        logger.info("probe_preview_url: 127.0.0.1:%s -> %s", merged[cport], ok)
         if ok is True:
             host_port = merged[cport]
             return f"http://localhost:{host_port}"

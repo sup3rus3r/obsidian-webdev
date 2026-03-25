@@ -212,6 +212,32 @@ async def stop_project(
     return await ProjectService.stop_container(project_id, current_user.user_id)
 
 
+@router.get("/{project_id}/devserver-logs")
+@limiter.limit("30/minute")
+async def devserver_logs(
+    project_id: str,
+    request: Request,
+    lines: int = 100,
+    current_user: TokenData = Depends(get_current_user),
+):
+    """Return the last N lines of the dev server log file."""
+    from database.mongo import get_database
+    from models.mongo_models import ProjectCollection
+    from services.container_service import exec_command
+    db = get_database()
+    doc = await ProjectCollection.find_by_id(db, project_id)
+    if not doc or doc["owner_id"] != current_user.user_id:
+        raise HTTPException(status_code=404, detail="Project not found")
+    container_id = doc.get("container_id")
+    if not container_id:
+        return {"logs": "Container not started."}
+    try:
+        output = await exec_command(container_id, f"tail -n {lines} /workspace/.devserver.log 2>/dev/null || echo 'No log yet — dev server may still be starting.'")
+        return {"logs": output}
+    except Exception as exc:
+        return {"logs": f"Could not read logs: {exc}"}
+
+
 @router.get("/{project_id}/probe-preview")
 @limiter.limit("60/minute")
 async def probe_preview(

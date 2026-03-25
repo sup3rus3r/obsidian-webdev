@@ -380,7 +380,7 @@ Browser
   │  WebSocket  /ws/agent/{session_id}?token=...   (streaming events)
   │  REST API   /auth /projects /vault /settings   (CRUD + auth)
   ▼
-FastAPI  (port 8100)
+FastAPI  (port 7412)
   ├── websocket/agent_ws.py        WS handler — receives chat, dispatches to runner
   ├── services/agent_runner.py     asyncio session registry — start/stop/approval/clarification
   ├── services/project_service.py  project CRUD + container lifecycle
@@ -521,8 +521,8 @@ Fill in `frontend/.env.local`:
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `AUTH_SECRET` | Yes | NextAuth secret — any random 32-byte hex string |
-| `NEXT_PUBLIC_API_URL` | No | Default: `http://localhost:8100` |
-| `NEXT_PUBLIC_WS_URL` | No | Default: `ws://localhost:8100` |
+| `NEXT_PUBLIC_API_URL` | No | Default: `http://localhost:7412` |
+| `NEXT_PUBLIC_WS_URL` | No | Default: `ws://localhost:7412` |
 | `NEXT_PUBLIC_ENCRYPTION_KEY` | Yes | Must match `ENCRYPTION_KEY` in `backend/.env` |
 
 ---
@@ -553,8 +553,8 @@ This single command:
 | Service | URL |
 |---------|-----|
 | Frontend | http://localhost:3100 |
-| Backend API | http://localhost:8100 |
-| API docs (Swagger) | http://localhost:8100/docs |
+| Backend API | http://localhost:7412 |
+| API docs (Swagger) | http://localhost:7412/docs |
 
 > `npm run dev` uses a cross-platform Node script and works on Windows, Linux, and macOS without requiring bash or WSL.
 
@@ -565,7 +565,7 @@ This single command:
 | Service | Port | Started by |
 |---------|------|------------|
 | Frontend (Next.js) | 3100 | `npm run dev` |
-| Backend (FastAPI) | 8100 | `npm run dev` |
+| Backend (FastAPI) | 7412 | `npm run dev` |
 | Qdrant (vector DB) | 6333 | Docker — auto-started by `npm run dev` |
 | MongoDB | 27017 | Docker — started in Step 3 (or Atlas) |
 | Project containers | dynamic | Created on-demand per project |

@@ -589,7 +589,7 @@ export default function SettingsPage() {
             <p className="text-sm font-medium text-destructive">Could not load API keys</p>
             <p className="mt-1 text-xs text-muted-foreground max-w-xs">
               Make sure the backend is running at{" "}
-              <span className="font-mono">{process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8100"}</span>
+              <span className="font-mono">{process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:7412"}</span>
             </p>
             <Button
               variant="outline"

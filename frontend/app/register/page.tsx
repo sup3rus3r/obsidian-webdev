@@ -17,7 +17,7 @@ const STEPS = [
   { n: 3, label: "Start building with AI" },
 ];
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8100";
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:7412";
 
 export default function RegisterPage() {
   const [username, setUsername] = useState("");

@@ -31,4 +31,4 @@ npx concurrently \
   --names "frontend,backend" \
   --prefix-colors "cyan,green" \
   "npm run dev --prefix \"$PROJECT_ROOT/frontend\"" \
-  "PYTHONUNBUFFERED=1 uv run --directory \"$PROJECT_ROOT/backend\" uvicorn main:app --port 8100 --reload --reload-dir \"$PROJECT_ROOT/backend\" --reload-exclude \"$PROJECT_ROOT/backend/.venv\" --reload-exclude \"$PROJECT_ROOT/backend/data\" --ws-ping-interval 120 --ws-ping-timeout 30"
+  "PYTHONUNBUFFERED=1 uv run --directory \"$PROJECT_ROOT/backend\" uvicorn main:app --port 7412 --reload --reload-dir \"$PROJECT_ROOT/backend\" --reload-exclude \"$PROJECT_ROOT/backend/.venv\" --reload-exclude \"$PROJECT_ROOT/backend/data\" --ws-ping-interval 120 --ws-ping-timeout 30"

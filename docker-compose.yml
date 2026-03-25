@@ -6,7 +6,7 @@ services:
       target: dev
     restart: unless-stopped
     ports:
-      - "8100:8100"
+      - "7412:7412"
     volumes:
       - ./backend:/app
       - /var/run/docker.sock:/var/run/docker.sock
@@ -35,7 +35,7 @@ services:
       - ./frontend:/app
       - /app/node_modules
     environment:
-      BACKEND_URL: http://backend:8100
+      BACKEND_URL: http://backend:7412
     depends_on:
       - backend
     networks:

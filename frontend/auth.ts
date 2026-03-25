@@ -21,7 +21,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             password: credentials.password,
           });
 
-          const res = await fetch("http://localhost:8100/auth/login", {
+          const res = await fetch("http://localhost:7412/auth/login", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ encrypted: encryptedData }),
@@ -78,7 +78,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       // Token expired or expiry unknown — attempt refresh
       if (token.accessToken) {
         try {
-          const res = await fetch("http://localhost:8100/auth/refresh", {
+          const res = await fetch("http://localhost:7412/auth/refresh", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",

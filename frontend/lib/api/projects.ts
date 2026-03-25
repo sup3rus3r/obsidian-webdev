@@ -103,6 +103,14 @@ export async function parseAttachment(
   return res.json() as Promise<ParsedAttachment>;
 }
 
+export async function getDevserverLogs(id: string, token: string): Promise<string> {
+  const res = await apiFetch<{ logs: string }>(`/projects/${id}/devserver-logs`, {
+    method: "GET",
+    token,
+  });
+  return res.logs ?? "";
+}
+
 export async function probePreview(id: string, token: string): Promise<string | null> {
   const res = await apiFetch<{ preview_url: string | null }>(`/projects/${id}/probe-preview`, {
     method: "GET",
