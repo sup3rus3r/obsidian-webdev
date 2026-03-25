@@ -90,10 +90,10 @@ def _load_system_prompt() -> str:
 
 # Maps framework name → skill file name (in docs/agent-skills/)
 _FRAMEWORK_SKILL_MAP: dict[str, list[str]] = {
-    "nextjs":    ["nextjs.md", "tailwind.md"],
-    "react":     ["react.md", "tailwind.md"],
+    "nextjs":    ["nextjs.md", "tailwind.md", "motion.md"],
+    "react":     ["react.md", "tailwind.md", "motion.md"],
     "fastapi":   ["fastapi.md"],
-    "fullstack": ["fullstack.md", "tailwind.md"],
+    "fullstack": ["fullstack.md", "tailwind.md", "motion.md"],
     "blank":     ["blank.md"],
 }
 
