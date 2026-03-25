@@ -1096,8 +1096,8 @@ export function AgentChat({
                   <ChevronDown className="h-2.5 w-2.5" />
                 </button>
                 {modelPickerOpen && (
-                  <div className="absolute bottom-full left-0 mb-1 z-50 w-56 rounded-lg border border-border/40 bg-popover shadow-lg flex flex-col" style={{maxHeight: "min(420px, calc(100vh - 120px))"}}>
-                    <div className="overflow-y-auto overflow-x-hidden flex-1 min-h-0">
+                  <div className="absolute bottom-full left-0 mb-1 z-50 w-56 rounded-lg border border-border/40 bg-popover shadow-lg flex flex-col min-h-0" style={{maxHeight: "min(460px, calc(100vh - 120px))"}}>
+                    <div className="overflow-y-auto overflow-x-hidden flex-1 min-h-0 scrollbar-thin scrollbar-thumb-border/40">
                     {/* Cloud presets */}
                     <div className="px-2 pt-2 pb-1">
                       <p className="px-1 pb-1 text-[9px] font-medium uppercase tracking-wider text-muted-foreground/40">Cloud</p>
