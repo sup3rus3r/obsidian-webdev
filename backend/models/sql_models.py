@@ -2,7 +2,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from database.sql import Base
@@ -53,6 +53,35 @@ class UserSecret(Base):
     provider: Mapped[str] = mapped_column(String(50))
     label: Mapped[str] = mapped_column(String(255))
     encrypted_value: Mapped[str] = mapped_column(Text)
+    key_version: Mapped[int] = mapped_column(Integer, default=VAULT_KEY_VERSION)
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), onupdate=func.now(), nullable=True
+    )
+
+
+class ProjectSecret(Base):
+    """Fernet-encrypted project-scoped secrets (SSH keys, PATs).
+
+    Keyed on (user_id, project_id, secret_type) — one active secret per type per project.
+    """
+
+    __tablename__ = "project_secrets"
+    __table_args__ = (
+        UniqueConstraint("user_id", "project_id", "secret_type", name="uq_project_secrets_user_project_type"),
+        Index("ix_project_secrets_project_id", "project_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    project_id: Mapped[str] = mapped_column(String(100))
+    secret_type: Mapped[str] = mapped_column(String(50))  # "ssh_key", "git_pat"
+    label: Mapped[str] = mapped_column(String(255))
+    encrypted_value: Mapped[str] = mapped_column(Text)     # private key or PAT
+    public_value: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # SSH public key (safe to expose)
     key_version: Mapped[int] = mapped_column(Integer, default=VAULT_KEY_VERSION)
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[Optional[datetime]] = mapped_column(

@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { FileTree } from "@/components/workspace/file-tree";
 import { AgentChat } from "@/components/workspace/agent-chat";
 import { TerminalPanel } from "@/components/workspace/terminal-panel";
+import { GitPanel } from "@/components/workspace/git-panel";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -27,6 +28,7 @@ import {
   Loader2,
   Zap,
   FolderTree,
+  GitBranch,
   Play,
   Square,
   X,
@@ -87,6 +89,7 @@ export default function WorkspacePage() {
   const [isProbing, setIsProbing] = useState(false);
   const [isBuildRunning, setIsBuildRunning] = useState(false);
   const [previewExpanded, setPreviewExpanded] = useState(false);
+  const [sidebarTab, setSidebarTab] = useState<"files" | "git">("files");
 
 
   const editorValueRef = useRef("");
@@ -521,58 +524,96 @@ export default function WorkspacePage() {
 
           <ResizablePanel id="sidebar" defaultSize="18" minSize="12" maxSize="35">
             <div className="h-full flex flex-col border-r overflow-hidden">
-              <div className="flex h-8 shrink-0 items-center gap-1 border-b px-2">
-                <FolderTree className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                <span className="flex-1 text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
-                  Files
-                </span>
+              {/* Sidebar tab switcher */}
+              <div className="flex h-8 shrink-0 border-b">
                 <button
                   type="button"
-                  title="New file"
-                  onClick={() => setNewFileInputOpen((o) => !o)}
-                  className="flex h-5 w-5 items-center justify-center rounded hover:bg-muted/60 text-muted-foreground/60 hover:text-foreground"
+                  onClick={() => setSidebarTab("files")}
+                  className={cn(
+                    "flex flex-1 items-center justify-center gap-1 text-[10px] font-medium transition-colors",
+                    sidebarTab === "files"
+                      ? "border-b-2 border-primary text-foreground"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
                 >
-                  <Plus className="h-3 w-3" />
+                  <FolderTree className="h-3 w-3" /> Files
                 </button>
                 <button
                   type="button"
-                  title="Export as ZIP"
-                  onClick={handleExportZip}
-                  className="flex h-5 w-5 items-center justify-center rounded hover:bg-muted/60 text-muted-foreground/60 hover:text-foreground"
+                  onClick={() => setSidebarTab("git")}
+                  className={cn(
+                    "flex flex-1 items-center justify-center gap-1 text-[10px] font-medium transition-colors",
+                    sidebarTab === "git"
+                      ? "border-b-2 border-primary text-foreground"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
                 >
-                  <Download className="h-3 w-3" />
+                  <GitBranch className="h-3 w-3" /> Git
                 </button>
               </div>
-              {newFileInputOpen && (
-                <div className="flex items-center gap-1 border-b px-2 py-1">
-                  <input
-                    ref={newFileInputRef}
-                    type="text"
-                    value={newFileInput}
-                    onChange={(e) => setNewFileInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") handleCreateFile();
-                      if (e.key === "Escape") { setNewFileInputOpen(false); setNewFileInput(""); }
-                    }}
-                    placeholder="src/file.ts"
-                    className="flex-1 rounded bg-muted/40 px-1.5 py-0.5 text-[11px] font-mono text-foreground outline-none focus:ring-1 focus:ring-primary/40 border border-border/30"
+
+              {sidebarTab === "files" && (
+                <>
+                  <div className="flex h-7 shrink-0 items-center gap-1 border-b px-2">
+                    <span className="flex-1 text-[10px] text-muted-foreground">Explorer</span>
+                    <button
+                      type="button"
+                      title="New file"
+                      onClick={() => setNewFileInputOpen((o) => !o)}
+                      className="flex h-5 w-5 items-center justify-center rounded hover:bg-muted/60 text-muted-foreground/60 hover:text-foreground"
+                    >
+                      <Plus className="h-3 w-3" />
+                    </button>
+                    <button
+                      type="button"
+                      title="Export as ZIP"
+                      onClick={handleExportZip}
+                      className="flex h-5 w-5 items-center justify-center rounded hover:bg-muted/60 text-muted-foreground/60 hover:text-foreground"
+                    >
+                      <Download className="h-3 w-3" />
+                    </button>
+                  </div>
+                  {newFileInputOpen && (
+                    <div className="flex items-center gap-1 border-b px-2 py-1">
+                      <input
+                        ref={newFileInputRef}
+                        type="text"
+                        value={newFileInput}
+                        onChange={(e) => setNewFileInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") handleCreateFile();
+                          if (e.key === "Escape") { setNewFileInputOpen(false); setNewFileInput(""); }
+                        }}
+                        placeholder="src/file.ts"
+                        className="flex-1 rounded bg-muted/40 px-1.5 py-0.5 text-[11px] font-mono text-foreground outline-none focus:ring-1 focus:ring-primary/40 border border-border/30"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleCreateFile}
+                        className="flex h-5 w-5 items-center justify-center rounded bg-primary/20 hover:bg-primary/30 text-primary"
+                      >
+                        <Check className="h-3 w-3" />
+                      </button>
+                    </div>
+                  )}
+                  <div className="flex-1 overflow-hidden">
+                    <FileTree
+                      nodes={fileNodes}
+                      selectedPath={activeTabPath}
+                      onSelect={handleSelectFile}
+                    />
+                  </div>
+                </>
+              )}
+
+              {sidebarTab === "git" && (
+                <div className="flex-1 overflow-hidden">
+                  <GitPanel
+                    projectId={projectId}
+                    containerRunning={project?.status === "running"}
                   />
-                  <button
-                    type="button"
-                    onClick={handleCreateFile}
-                    className="flex h-5 w-5 items-center justify-center rounded bg-primary/20 hover:bg-primary/30 text-primary"
-                  >
-                    <Check className="h-3 w-3" />
-                  </button>
                 </div>
               )}
-              <div className="flex-1 overflow-hidden">
-                <FileTree
-                  nodes={fileNodes}
-                  selectedPath={activeTabPath}
-                  onSelect={handleSelectFile}
-                />
-              </div>
             </div>
           </ResizablePanel>
           <ResizableHandle withHandle />

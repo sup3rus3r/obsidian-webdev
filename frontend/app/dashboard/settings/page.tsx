@@ -44,12 +44,15 @@ import {
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
-const PROVIDERS: { value: ProviderType; label: string; placeholder: string }[] = [
-  { value: "anthropic", label: "Anthropic", placeholder: "sk-ant-…" },
-  { value: "openai", label: "OpenAI", placeholder: "sk-…" },
-  { value: "ollama", label: "Ollama (local)", placeholder: "http://localhost:11434" },
-  { value: "lmstudio", label: "LM Studio (local)", placeholder: "http://localhost:1234" },
-  { value: "obsidian-ai", label: "Obsidian AI (self-hosted)", placeholder: "http://localhost:8000" },
+const PROVIDERS: { value: ProviderType; label: string; placeholder: string; group?: string }[] = [
+  { value: "anthropic", label: "Anthropic", placeholder: "sk-ant-…", group: "AI Providers" },
+  { value: "openai", label: "OpenAI", placeholder: "sk-…", group: "AI Providers" },
+  { value: "ollama", label: "Ollama (local)", placeholder: "http://localhost:11434", group: "AI Providers" },
+  { value: "lmstudio", label: "LM Studio (local)", placeholder: "http://localhost:1234", group: "AI Providers" },
+  { value: "obsidian-ai", label: "Obsidian AI (self-hosted)", placeholder: "http://localhost:8000", group: "AI Providers" },
+  { value: "github_pat", label: "GitHub (PAT)", placeholder: "ghp_…", group: "Git Credentials" },
+  { value: "gitlab_pat", label: "GitLab (PAT)", placeholder: "glpat-…", group: "Git Credentials" },
+  { value: "bitbucket_pat", label: "Bitbucket (App Password)", placeholder: "ATB…", group: "Git Credentials" },
 ];
 
 const EMPTY_OBSIDIAN = { url: "", api_key: "", api_secret: "" };
@@ -70,6 +73,7 @@ function AddKeyDialog({ onAdded }: { onAdded: (key: VaultKey) => void }) {
   const selectedProvider = PROVIDERS.find((p) => p.value === form.provider);
   const isObsidian = form.provider === "obsidian-ai";
   const isLocal = form.provider === "ollama" || form.provider === "lmstudio";
+  const isGitPat = form.provider === "github_pat" || form.provider === "gitlab_pat" || form.provider === "bitbucket_pat";
 
   const isSubmitDisabled =
     isLoading ||
@@ -215,7 +219,7 @@ function AddKeyDialog({ onAdded }: { onAdded: (key: VaultKey) => void }) {
             </>
           ) : (
             <div className="space-y-1.5">
-              <Label htmlFor="key-value">API Key</Label>
+              <Label htmlFor="key-value">{isGitPat ? "Personal Access Token" : "API Key"}</Label>
               <Input
                 id="key-value"
                 type="password"
@@ -224,6 +228,11 @@ function AddKeyDialog({ onAdded }: { onAdded: (key: VaultKey) => void }) {
                 onChange={(e) => setForm((f) => ({ ...f, value: e.target.value }))}
                 required
               />
+              {isGitPat && (
+                <p className="text-[11px] text-muted-foreground">
+                  Used automatically for private repo clone, pull, and push. Needs <code className="font-mono">repo</code> scope.
+                </p>
+              )}
             </div>
           )}
         </form>

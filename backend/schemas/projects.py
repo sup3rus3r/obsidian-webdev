@@ -120,8 +120,10 @@ class ProjectImportGitHub(BaseModel):
         v = v.strip()
         if not v:
             raise ValueError("github_url must not be empty")
-        if not (v.startswith("https://") or v.startswith("http://")):
-            raise ValueError("github_url must be a valid HTTP/HTTPS URL")
+        is_ssh = v.startswith("git@") or v.startswith("ssh://")
+        is_http = v.startswith("https://") or v.startswith("http://")
+        if not (is_ssh or is_http):
+            raise ValueError("github_url must be an HTTPS or SSH git URL")
         return v
 
 
@@ -130,6 +132,7 @@ class ProjectUpdate(BaseModel):
     description: Optional[str] = None
     model_provider: Optional[ModelProvider] = None
     model_id: Optional[str] = None
+    remote_url: Optional[str] = None
 
     @field_validator("name")
     @classmethod

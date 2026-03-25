@@ -438,6 +438,58 @@ TEMPLATE_COMMANDS: dict[str, str] = {
 }
 
 
+async def inject_ssh_key(container_id: str, private_key_pem: str) -> None:
+    """Write the SSH private key into ~/.ssh/id_ed25519 inside the container.
+
+    Also writes a known_hosts-friendly ssh_config so git push/pull works
+    against GitHub/GitLab without interactive host verification prompts.
+    Only called when the project has an SSH key stored in the vault.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    ssh_config = (
+        "Host github.com\n"
+        "  StrictHostKeyChecking no\n"
+        "  UserKnownHostsFile /dev/null\n"
+        "Host gitlab.com\n"
+        "  StrictHostKeyChecking no\n"
+        "  UserKnownHostsFile /dev/null\n"
+        "Host bitbucket.org\n"
+        "  StrictHostKeyChecking no\n"
+        "  UserKnownHostsFile /dev/null\n"
+    )
+
+    escaped_key = private_key_pem.replace("'", "'\\''")
+    escaped_config = ssh_config.replace("'", "'\\''")
+
+    cmd = (
+        "mkdir -p /root/.ssh && "
+        f"printf '%s' '{escaped_key}' > /root/.ssh/id_ed25519 && "
+        "chmod 600 /root/.ssh/id_ed25519 && "
+        f"printf '%s' '{escaped_config}' > /root/.ssh/config && "
+        "chmod 600 /root/.ssh/config"
+    )
+
+    def _run():
+        client = get_docker_client()
+        container = client.containers.get(container_id)
+        exit_code, output = container.exec_run(
+            cmd=["bash", "-c", cmd],
+            user="root",
+            stream=False,
+            demux=False,
+        )
+        text = output.decode("utf-8", errors="replace") if output else ""
+        return exit_code, text
+
+    exit_code, output = await asyncio.to_thread(_run)
+    if exit_code != 0:
+        logger.warning("SSH key injection failed (exit %d): %s", exit_code, output)
+    else:
+        logger.info("SSH key injected into container %s", container_id)
+
+
 async def inject_template(container_id: str, framework: str, github_url: str | None = None) -> tuple[int, str]:
     """Scaffold boilerplate by running framework CLI commands inside the container.
 
@@ -451,8 +503,14 @@ async def inject_template(container_id: str, framework: str, github_url: str | N
     logger = logging.getLogger(__name__)
 
     if github_url:
-        cmd = f"git clone --depth 1 {github_url} ."
-        logger.info("Cloning GitHub repo %s into container %s", github_url, container_id)
+        # Sanitise URL for shell safety (no shell expansion chars in valid git URLs)
+        safe_url = github_url.replace("'", "")
+        cmd = f"git clone --depth 1 '{safe_url}' ."
+        is_ssh_url = github_url.startswith("git@") or github_url.startswith("ssh://")
+        env = {"GIT_TERMINAL_PROMPT": "0"}
+        if is_ssh_url:
+            env["GIT_SSH_COMMAND"] = "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+        logger.info("Cloning repo %s into container %s (ssh=%s)", github_url, container_id, is_ssh_url)
 
         def _run_clone():
             client = get_docker_client()
@@ -462,6 +520,7 @@ async def inject_template(container_id: str, framework: str, github_url: str | N
                 workdir="/workspace",
                 stream=False,
                 demux=False,
+                environment=env,
             )
             text = output.decode("utf-8", errors="replace") if output else ""
             return exit_code, text

@@ -16,12 +16,25 @@ from schemas.projects import ProjectCreate, ProjectImportGitHub, ProjectUpdate
 logger = logging.getLogger(__name__)
 
 
-async def _inject_template_bg(project_id: str, container_id: str, framework: str, github_url: Optional[str] = None) -> None:
+async def _inject_template_bg(project_id: str, container_id: str, framework: str, github_url: Optional[str] = None, owner_id: Optional[str] = None) -> None:
     """Background task: run CLI scaffold commands, sync files to MongoDB, then set status running."""
     from services.container_service import inject_template
     from services.file_service import FileService
 
     db = get_database()
+
+    # For HTTPS clone URLs, look up a PAT from the vault and pass it through
+    if github_url and github_url.startswith("https://") and owner_id:
+        try:
+            from database.sql import get_db as _get_db
+            from services.vault_service import VaultService
+            _db = next(_get_db())
+            pat = await VaultService.get_git_pat_for_url(owner_id, github_url, _db)
+            if pat:
+                from services.git_service import _inject_pat_into_url
+                github_url = _inject_pat_into_url(github_url, pat)
+        except Exception:
+            pass
     try:
         exit_code, output = await inject_template(container_id, framework, github_url=github_url)
         if exit_code != 0:
@@ -273,9 +286,22 @@ class ProjectService:
         except Exception as exc:
             raise HTTPException(status_code=500, detail=f"Container start failed: {exc}")
 
+        # Inject SSH key BEFORE any clone/template tasks — best-effort, non-blocking
+        try:
+            from database.sql import get_db as _get_db
+            from services.container_service import inject_ssh_key
+            from services.vault_service import ProjectSecretService, VaultService
+            _db = next(_get_db())
+            private_key = await ProjectSecretService.get_ssh_private_key(owner_id, project_id, _db)
+            await inject_ssh_key(container_id, private_key)
+        except Exception:
+            pass  # No SSH key configured — falls back to PAT or public repo access
+
+        # Also check for remote_url on non-import projects (set via git panel or project update)
+        remote_url = doc.get("remote_url") or github_url
 
         file_count = await ProjectFileCollection.count_by_project(db, project_id)
-        needs_template = (framework != "blank" or github_url) and not template_ready and file_count == 0
+        needs_template = (framework != "blank" or remote_url) and not template_ready and file_count == 0
 
         needs_sync = template_ready and file_count == 0
 
@@ -304,7 +330,7 @@ class ProjectService:
                 "updated_at": now,
             })
             asyncio.create_task(
-                _inject_template_bg(project_id, container_id, framework, github_url=github_url)
+                _inject_template_bg(project_id, container_id, framework, github_url=remote_url, owner_id=owner_id)
             )
         else:
             updated = await ProjectCollection.update(db, project_id, {

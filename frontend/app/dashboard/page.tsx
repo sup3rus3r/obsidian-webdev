@@ -517,8 +517,8 @@ function NewProjectDialog({
               >
                 <Github className="h-4 w-4 shrink-0" />
                 <div>
-                  <p className="text-xs font-medium">GitHub URL</p>
-                  <p className="text-[10px] text-muted-foreground">Clone a public repo</p>
+                  <p className="text-xs font-medium">Git URL</p>
+                  <p className="text-[10px] text-muted-foreground">Clone public or private repo</p>
                 </div>
               </button>
               <button
@@ -538,14 +538,25 @@ function NewProjectDialog({
 
             {importMode === "github" ? (
               <div className="space-y-1.5">
-                <Label htmlFor="import-url">GitHub repository URL</Label>
+                <Label htmlFor="import-url">Repository URL</Label>
                 <Input
                   id="import-url"
-                  placeholder="https://github.com/owner/repo"
+                  placeholder="https://github.com/owner/repo or git@github.com:owner/repo.git"
                   value={importForm.github_url}
                   onChange={(e) => handleGitHubUrlChange(e.target.value)}
                   required
                 />
+                {(importForm.github_url.startsWith("git@") || importForm.github_url.startsWith("ssh://")) && (
+                  <p className="flex items-center gap-1.5 text-[11px] text-yellow-600 dark:text-yellow-400">
+                    <span className="text-yellow-500">⚠</span>
+                    SSH URL detected — generate an SSH key in the workspace Git panel and add it to GitHub before starting this project.
+                  </p>
+                )}
+                {importForm.github_url.startsWith("https://") && (
+                  <p className="text-[10px] text-muted-foreground">
+                    For private repos, save a GitHub PAT in <span className="font-medium">Settings → Add key → GitHub (PAT)</span> — it will be used automatically.
+                  </p>
+                )}
               </div>
             ) : (
               <div className="space-y-1.5">

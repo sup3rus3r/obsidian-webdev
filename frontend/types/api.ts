@@ -20,6 +20,8 @@ export interface Project {
   host_ports: Record<string, number> | null;
   preview_url: string | null;
   template_ready?: boolean;
+  github_url?: string | null;
+  remote_url?: string | null;
   created_at: string;
   updated_at: string | null;
 }
@@ -52,7 +54,7 @@ export interface ProjectImportGitHub {
 }
 
 
-export type ProviderType = "anthropic" | "openai" | "ollama" | "lmstudio" | "obsidian-ai";
+export type ProviderType = "anthropic" | "openai" | "ollama" | "lmstudio" | "obsidian-ai" | "github_pat" | "gitlab_pat" | "bitbucket_pat";
 
 export interface VaultKey {
   id: string;
@@ -78,6 +80,46 @@ export interface VaultValidateResponse {
   message: string;
 }
 
+
+// --- Git / SSH types ---
+
+export interface SSHKeyResponse {
+  project_id: string;
+  public_key: string;
+  label: string;
+  created_at: string;
+  already_existed: boolean;
+}
+
+export interface GitStatus {
+  initialized: boolean;
+  branch: string | null;
+  remote: string | null;
+  files: { status: string; path: string }[];
+  clean: boolean;
+  ahead: number;
+  behind: number;
+}
+
+export interface GitCommit {
+  hash: string;
+  short_hash: string;
+  message: string;
+  author: string;
+  email: string;
+  ago: string;
+}
+
+export interface GitBranches {
+  current: string;
+  local: string[];
+  remote: string[];
+}
+
+export interface GitRemote {
+  name: string;
+  url: string;
+}
 
 export type AgentSessionStatus =
   | "idle"

@@ -50,9 +50,11 @@ Describe what you want to build. A single ReAct agent plans it, writes the code,
   - [Project Isolation via Docker](#project-isolation-via-docker)
   - [Project Templates](#project-templates)
   - [Project Import](#project-import)
+  - [Git Integration](#git-integration)
   - [Secrets Vault](#secrets-vault)
   - [User Preferences](#user-preferences)
   - [Security & Authentication](#security--authentication)
+  - [Framework-Aware Agent Skills](#framework-aware-agent-skills)
 - [Architecture](#architecture)
 - [Quick Start](#quick-start)
   - [Prerequisites](#prerequisites)
@@ -291,14 +293,37 @@ Both import modes still let you choose the AI provider and model. Imported proje
 
 ---
 
+### Git Integration
+
+Full git workflow inside every project container — pull, push, branch management, commits, and SSH authentication — without leaving the platform.
+
+- **SSH keypair generation** — Generate an ED25519 keypair per project via the workspace UI. The private key is encrypted with Fernet and stored in the vault. The public key is displayed for you to add to GitHub, GitLab, or Bitbucket once.
+- **Automatic key injection** — When a project container starts, the SSH private key is written to `~/.ssh/id_ed25519` inside the container with correct permissions. An `ssh_config` entry sets `StrictHostKeyChecking no` for GitHub, GitLab, and Bitbucket so push/pull works without prompts.
+- **PAT support** — Alternatively store a Personal Access Token for HTTPS-based git auth.
+- **Full git operations** — Status, log, diff, pull, push, commit, checkout, branch list, remote management, and init — all available from the workspace git panel and via the agent using `bash`.
+- **Agent-aware** — The workspace agent can run git commands directly via the `bash` tool. SSH keys are already in place when the agent runs.
+- **Force push disabled** — The API explicitly blocks `--force` push for safety.
+
+**SSH setup (one-time per project):**
+
+1. Open the project workspace → Git panel → **Generate SSH Key**
+2. Copy the displayed public key
+3. Add it to GitHub: **Settings → SSH and GPG keys → New SSH key**
+4. Set your remote: `git remote add origin git@github.com:user/repo.git`
+5. Push/pull works from that point forward — including from the agent
+
+---
+
 ### Secrets Vault
 
-Store AI provider API keys in an encrypted vault. Keys are encrypted with AES-256 (Fernet) at rest — the raw value is never accessible after saving.
+Store API keys and git credentials in an encrypted vault. Values are encrypted with AES-256 (Fernet) at rest — the raw value is never accessible after saving.
 
-- **Per-provider keys** — One key per provider per user. Supported providers: Anthropic, OpenAI, Ollama, LM Studio, Obsidian AI (self-hosted).
-- **Encrypted at rest** — All stored values are encrypted with a Fernet key derived from the user ID and a server-side master key. The encrypted blob is what's stored in MongoDB / SQLite.
-- **Key validation** — A "Test" button on each key row calls the provider's API with a minimal request to verify the key is valid before running an agent.
-- **Environment fallback** — If a user doesn't have a vault key for a provider, the backend falls back to the server-level environment variable (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`). This lets you pre-configure a shared key for multi-user setups.
+- **AI provider keys** — One key per provider per user. Supported: Anthropic, OpenAI, Ollama, LM Studio, Obsidian AI (self-hosted).
+- **SSH keypairs** — Project-scoped ED25519 keypairs for git authentication. Private key encrypted; public key exposed for GitHub/GitLab setup.
+- **PATs** — Project-scoped Personal Access Tokens for HTTPS git auth.
+- **Encrypted at rest** — All values are encrypted with a Fernet key derived from the user ID and a server-side master key (`FERNET_MASTER_KEY`). The encrypted blob is what's stored in MongoDB / SQLite.
+- **Key validation** — A "Test" button on each AI provider key calls the provider's API to verify validity before running an agent.
+- **Environment fallback** — If a user has no vault key for an AI provider, the backend falls back to the server-level environment variable (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`).
 
 ---
 
@@ -315,6 +340,25 @@ Per-user agent behaviour settings stored in MongoDB. Changes take effect on the 
 | **Web fetch limit** | 20,000 chars | 5,000–100,000 | Max characters from a web page fetch |
 
 Preferences are loaded from MongoDB on every chat message and forwarded to the `Agent` constructor. This means a preference change in Settings takes effect immediately without requiring a page reload or new session.
+
+---
+
+### Framework-Aware Agent Skills
+
+The workspace agent's system prompt is dynamically extended at session start with a framework-specific skill block. This gives the agent precise, version-accurate rules for the project it's working in — without relying on training knowledge that may be outdated.
+
+- **Per-framework skill injection** — When an agent session starts, `agent.py` loads the matching skill file from `docs/agent-skills/` and appends it to the system prompt. A Next.js project gets Next.js 16 + Tailwind v4 rules; a FastAPI project gets Python 3.12 + Pydantic v2 + SQLAlchemy v2 rules.
+- **Context7 integration** — Each skill file instructs the agent to fetch live documentation from [Context7](https://context7.com) via `web_fetch` before writing code for any library. The exact API URLs and topic parameters are embedded in the skill — the agent never has to guess the endpoint.
+- **Tailwind v4 rules** — Injected into all JS/TS framework skills. Covers the breaking changes from v3 (no `tailwind.config.js`, `@import "tailwindcss"`, `@theme` block, `@variant` for dark mode).
+- **Git-aware** — All skill files include git instructions and remind the agent that SSH keys are pre-injected and push/pull works without additional setup.
+
+| Framework | Skill file | Context7 libraries covered |
+|-----------|-----------|---------------------------|
+| Next.js | `docs/agent-skills/nextjs.md` | Next.js, React 19, Tailwind v4 |
+| React (Vite) | `docs/agent-skills/react.md` | React, React Router, Vite, Tailwind v4 |
+| FastAPI | `docs/agent-skills/fastapi.md` | FastAPI, SQLAlchemy v2, Pydantic v2 |
+| Full-Stack | `docs/agent-skills/fullstack.md` | Next.js/React + FastAPI/Express, Tailwind v4, Prisma |
+| Blank | `docs/agent-skills/blank.md` | TypeScript, any tech the user chooses |
 
 ---
 
@@ -569,8 +613,9 @@ obsidian-webdev/
 │   │
 │   ├── services/
 │   │   ├── agent_runner.py   # AgentSession dataclass + start/stop/approval/clarification
-│   │   ├── project_service.py # Project CRUD + run_container + template injection
-│   │   ├── container_service.py # Docker SDK — create/start/exec/cleanup + inject_template
+│   │   ├── project_service.py # Project CRUD + run_container + template + SSH injection
+│   │   ├── container_service.py # Docker SDK — create/start/exec/cleanup + inject_ssh_key
+│   │   ├── git_service.py    # Git operations via container exec_run
 │   │   └── file_service.py   # list/read/write + sync_from_volume + export_zip
 │   │
 │   ├── websocket/
@@ -583,13 +628,14 @@ obsidian-webdev/
 │   │   ├── projects.py       # Project CRUD + file endpoints + attachment parsing
 │   │   ├── containers.py     # Container start/stop/status
 │   │   ├── agent.py          # Agent session CRUD
-│   │   ├── vault.py          # Secrets CRUD + validation
+│   │   ├── git.py            # Git operations (status/log/pull/push/commit/branch)
+│   │   ├── vault.py          # Secrets CRUD + SSH key generation + validation
 │   │   └── settings.py       # GET/PUT /settings/preferences
 │   │
 │   ├── models/
-│   │   ├── sql_models.py     # SQLAlchemy: User, APIClient, UserSecret
+│   │   ├── sql_models.py     # SQLAlchemy: User, APIClient, UserSecret, ProjectSecret
 │   │   └── mongo_models.py   # Motor: Project, File, Conversation, AgentSession,
-│   │                         #        UserPreferences, FileSummary, Export
+│   │                         #        UserPreferences, FileSummary, Export, ProjectSecret
 │   │
 │   ├── core/
 │   │   ├── security.py       # JWT encode/decode, get_current_user dependency
@@ -602,8 +648,15 @@ obsidian-webdev/
 │   │
 │   └── docs/
 │       ├── ROADMAP.md                # Phase-by-phase feature roadmap
-│       ├── AGENT_SYSTEM_PROMPT.md    # Agent system prompt (loaded at runtime)
-│       └── AGENT_KNOWLEDGE_BASE.md  # Build standards and conventions
+│       ├── AGENT_SYSTEM_PROMPT.md    # Agent base system prompt (loaded at runtime)
+│       ├── AGENT_KNOWLEDGE_BASE.md  # Build standards and conventions
+│       └── agent-skills/            # Per-framework skill files (injected at agent init)
+│           ├── nextjs.md            # Next.js 16 + React 19 + Tailwind v4 rules + Context7
+│           ├── react.md             # React + Vite rules + Context7
+│           ├── fastapi.md           # FastAPI + SQLAlchemy v2 + Pydantic v2 rules + Context7
+│           ├── fullstack.md         # Combined frontend+backend rules + Context7
+│           ├── tailwind.md          # Tailwind CSS v4 rules (injected into all JS frameworks)
+│           └── blank.md             # Blank project orientation rules
 │
 └── frontend/
     ├── package.json
@@ -684,6 +737,21 @@ See [docs/ROADMAP.md](docs/ROADMAP.md) for full detail and phase-by-phase breakd
 - [x] **JWT + NextAuth v5** — Token-based auth on all endpoints and WebSocket connections
 - [x] **AES + Fernet vault** — Client-side AES encryption + server-side Fernet storage; raw key values never returned by any endpoint
 - [x] **RBAC + rate limiting** — Guest / admin roles; slowapi rate limits per user
+
+### Git Integration
+
+- [x] **SSH keypair generation** — ED25519 keypair generated per project; private key Fernet-encrypted in vault; public key returned for GitHub/GitLab setup
+- [x] **Automatic SSH injection** — Private key written to `~/.ssh/id_ed25519` on container start; `ssh_config` pre-configured for GitHub, GitLab, Bitbucket
+- [x] **PAT support** — Store Personal Access Tokens as an alternative to SSH for HTTPS git auth
+- [x] **Full git API** — `/git/{project_id}/` endpoints for status, log, diff, pull, push, commit, checkout, branches, remotes, init
+- [x] **Project-scoped secrets** — `ProjectSecret` model (SQL + MongoDB) with `(user_id, project_id, secret_type)` uniqueness
+
+### Framework-Aware Agent Skills
+
+- [x] **Per-framework skill injection** — Skill files loaded from `docs/agent-skills/` and appended to system prompt at agent init
+- [x] **Context7 integration** — Every skill file includes exact `web_fetch` URLs + topic parameters for live documentation retrieval
+- [x] **Tailwind v4 skill** — Injected into all JS/TS frameworks; covers all v3→v4 breaking changes
+- [x] **Frameworks covered** — Next.js 16, React + Vite, FastAPI, Full-Stack, Blank
 
 ### Planned
 

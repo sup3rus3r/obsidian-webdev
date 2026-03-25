@@ -1,4 +1,7 @@
 """Secrets vault business logic."""
+import asyncio
+from datetime import datetime, timezone
+
 import httpx
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
@@ -6,7 +9,10 @@ from sqlalchemy.orm import Session
 from config import settings
 from core.vault import encrypt_secret, decrypt_secret, CURRENT_KEY_VERSION
 from schemas.vault import (
+    GitPatCreate,
     ProviderType,
+    SSHKeyGenerateRequest,
+    SSHKeyResponse,
     VaultKeyCreate,
     VaultKeyListResponse,
     VaultKeyResponse,
@@ -151,6 +157,32 @@ class VaultService:
 
 
     @staticmethod
+    async def get_git_pat_for_url(user_id: str, url: str, db: Session) -> str | None:
+        """Return a decrypted PAT for the git host in `url`, or None if none is stored.
+
+        Maps hosts to provider keys:
+          github.com    → github_pat
+          gitlab.com    → gitlab_pat
+          bitbucket.org → bitbucket_pat
+        """
+        host_map = {
+            "github.com": "github_pat",
+            "gitlab.com": "gitlab_pat",
+            "bitbucket.org": "bitbucket_pat",
+        }
+        provider_key: str | None = None
+        for host, key in host_map.items():
+            if host in url:
+                provider_key = key
+                break
+        if not provider_key:
+            return None
+        try:
+            return await VaultService.get_decrypted_value(user_id, provider_key, db)
+        except Exception:
+            return None
+
+    @staticmethod
     async def validate_secret(user_id: str, provider: ProviderType, db: Session) -> VaultValidateResponse:
         """Decrypt the stored key and test it against the provider's API."""
         value = await VaultService.get_decrypted_value(user_id, provider.value, db)
@@ -234,6 +266,189 @@ async def _validate_obsidian_ai(json_value: str) -> tuple[bool, str]:
         return False, f"Could not connect to Obsidian AI at {base_url}"
     except Exception as e:
         return False, f"Validation error: {e}"
+
+
+class ProjectSecretService:
+    """Manages project-scoped secrets: SSH keypairs and PATs."""
+
+    @staticmethod
+    async def generate_ssh_keypair(user_id: str, payload: SSHKeyGenerateRequest, db: Session) -> SSHKeyResponse:
+        """Generate an ED25519 keypair for a project. Stores private key encrypted, returns public key."""
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+        # Check if one already exists
+        existing = await ProjectSecretService._find_secret(user_id, payload.project_id, "ssh_key", db)
+        if existing:
+            pub = existing.get("public_value") if isinstance(existing, dict) else existing.public_value
+            created = existing.get("created_at") if isinstance(existing, dict) else existing.created_at
+            label = existing.get("label") if isinstance(existing, dict) else existing.label
+            return SSHKeyResponse(
+                project_id=payload.project_id,
+                public_key=pub,
+                label=label,
+                created_at=created,
+                already_existed=True,
+            )
+
+        def _generate():
+            private_key = Ed25519PrivateKey.generate()
+            private_pem = private_key.private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.OpenSSH,
+                encryption_algorithm=serialization.NoEncryption(),
+            ).decode()
+            public_openssh = private_key.public_key().public_bytes(
+                encoding=serialization.Encoding.OpenSSH,
+                format=serialization.PublicFormat.OpenSSH,
+            ).decode()
+            return private_pem, public_openssh
+
+        private_pem, public_openssh = await asyncio.to_thread(_generate)
+        label = payload.label or f"SSH key for project {payload.project_id}"
+        encrypted_private = encrypt_secret(user_id, private_pem)
+
+        doc = await ProjectSecretService._upsert_secret(
+            user_id, payload.project_id, "ssh_key", label, encrypted_private, public_openssh, db
+        )
+        created_at = doc.get("created_at") if isinstance(doc, dict) else doc.created_at
+        return SSHKeyResponse(
+            project_id=payload.project_id,
+            public_key=public_openssh,
+            label=label,
+            created_at=created_at or datetime.now(timezone.utc),
+            already_existed=False,
+        )
+
+    @staticmethod
+    async def get_ssh_public_key(user_id: str, project_id: str, db: Session) -> SSHKeyResponse:
+        """Return the public key for a project. Raises 404 if not generated yet."""
+        existing = await ProjectSecretService._find_secret(user_id, project_id, "ssh_key", db)
+        if not existing:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "No SSH key found for this project. Generate one first.")
+        pub = existing.get("public_value") if isinstance(existing, dict) else existing.public_value
+        created = existing.get("created_at") if isinstance(existing, dict) else existing.created_at
+        label = existing.get("label") if isinstance(existing, dict) else existing.label
+        return SSHKeyResponse(
+            project_id=project_id,
+            public_key=pub,
+            label=label,
+            created_at=created,
+            already_existed=True,
+        )
+
+    @staticmethod
+    async def get_ssh_private_key(user_id: str, project_id: str, db: Session) -> str:
+        """Return the decrypted private key. Only used internally for container injection."""
+        existing = await ProjectSecretService._find_secret(user_id, project_id, "ssh_key", db)
+        if not existing:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "No SSH key found for this project.")
+        enc = existing.get("encrypted_value") if isinstance(existing, dict) else existing.encrypted_value
+        kv = existing.get("key_version", 1) if isinstance(existing, dict) else existing.key_version
+        return decrypt_secret(user_id, enc, kv)
+
+    @staticmethod
+    async def store_git_pat(user_id: str, payload: GitPatCreate, db: Session) -> SSHKeyResponse:
+        """Encrypt and store a PAT for a project."""
+        encrypted = encrypt_secret(user_id, payload.token)
+        doc = await ProjectSecretService._upsert_secret(
+            user_id, payload.project_id, "git_pat", payload.label, encrypted, None, db
+        )
+        created_at = doc.get("created_at") if isinstance(doc, dict) else doc.created_at
+        return SSHKeyResponse(
+            project_id=payload.project_id,
+            public_key="",
+            label=payload.label,
+            created_at=created_at or datetime.now(timezone.utc),
+        )
+
+    @staticmethod
+    async def delete_project_secret(user_id: str, project_id: str, secret_type: str, db: Session) -> dict:
+        if settings.DATABASE_TYPE == "mongo":
+            from database.mongo import get_database
+            from models.mongo_models import ProjectSecretCollection
+            mongo_db = get_database()
+            ok = await ProjectSecretCollection.soft_delete(mongo_db, user_id, project_id, secret_type)
+            if not ok:
+                raise HTTPException(status.HTTP_404_NOT_FOUND, f"No {secret_type} found for this project.")
+            return {"message": f"{secret_type} removed for project {project_id}"}
+
+        from models.sql_models import ProjectSecret
+        row = db.query(ProjectSecret).filter(
+            ProjectSecret.user_id == int(user_id),
+            ProjectSecret.project_id == project_id,
+            ProjectSecret.secret_type == secret_type,
+            ProjectSecret.is_deleted == False,
+        ).first()
+        if not row:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, f"No {secret_type} found for this project.")
+        row.is_deleted = True
+        db.commit()
+        return {"message": f"{secret_type} removed for project {project_id}"}
+
+    # --- internal helpers ---
+
+    @staticmethod
+    async def _find_secret(user_id: str, project_id: str, secret_type: str, db: Session):
+        if settings.DATABASE_TYPE == "mongo":
+            from database.mongo import get_database
+            from models.mongo_models import ProjectSecretCollection
+            mongo_db = get_database()
+            return await ProjectSecretCollection.find_by_type(mongo_db, user_id, project_id, secret_type)
+
+        from models.sql_models import ProjectSecret
+        return db.query(ProjectSecret).filter(
+            ProjectSecret.user_id == int(user_id),
+            ProjectSecret.project_id == project_id,
+            ProjectSecret.secret_type == secret_type,
+            ProjectSecret.is_deleted == False,
+        ).first()
+
+    @staticmethod
+    async def _upsert_secret(
+        user_id: str,
+        project_id: str,
+        secret_type: str,
+        label: str,
+        encrypted_value: str,
+        public_value,
+        db: Session,
+    ):
+        if settings.DATABASE_TYPE == "mongo":
+            from database.mongo import get_database
+            from models.mongo_models import ProjectSecretCollection
+            mongo_db = get_database()
+            return await ProjectSecretCollection.upsert(
+                mongo_db, user_id, project_id, secret_type, label,
+                encrypted_value, CURRENT_KEY_VERSION, public_value,
+            )
+
+        from models.sql_models import ProjectSecret
+        row = db.query(ProjectSecret).filter(
+            ProjectSecret.user_id == int(user_id),
+            ProjectSecret.project_id == project_id,
+            ProjectSecret.secret_type == secret_type,
+        ).first()
+        if row:
+            row.label = label
+            row.encrypted_value = encrypted_value
+            row.public_value = public_value
+            row.key_version = CURRENT_KEY_VERSION
+            row.is_deleted = False
+        else:
+            row = ProjectSecret(
+                user_id=int(user_id),
+                project_id=project_id,
+                secret_type=secret_type,
+                label=label,
+                encrypted_value=encrypted_value,
+                public_value=public_value,
+                key_version=CURRENT_KEY_VERSION,
+            )
+            db.add(row)
+        db.commit()
+        db.refresh(row)
+        return row
 
 
 def _parse_local_value(value: str) -> tuple[str, str]:

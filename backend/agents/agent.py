@@ -88,6 +88,39 @@ def _load_system_prompt() -> str:
         )
 
 
+# Maps framework name → skill file name (in docs/agent-skills/)
+_FRAMEWORK_SKILL_MAP: dict[str, list[str]] = {
+    "nextjs":    ["nextjs.md", "tailwind.md"],
+    "react":     ["react.md", "tailwind.md"],
+    "fastapi":   ["fastapi.md"],
+    "fullstack": ["fullstack.md", "tailwind.md"],
+    "blank":     ["blank.md"],
+}
+
+_SKILLS_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "docs", "agent-skills")
+
+
+def _load_framework_skill(framework: str) -> str:
+    """Load and concatenate skill files for the given framework.
+
+    Returns a combined skill block ready to append to the system prompt.
+    Returns empty string if no skills are defined for the framework.
+    """
+    skill_files = _FRAMEWORK_SKILL_MAP.get(framework, _FRAMEWORK_SKILL_MAP["blank"])
+    parts: list[str] = []
+    for filename in skill_files:
+        path = os.path.join(_SKILLS_DIR, filename)
+        try:
+            with open(path) as fh:
+                parts.append(fh.read().strip())
+        except FileNotFoundError:
+            logger.warning("Skill file not found: %s", path)
+    if not parts:
+        return ""
+    joined = "\n\n---\n\n".join(parts)
+    return f"\n\n## Framework & Library Skills\n\n{joined}"
+
+
 _SYSTEM_PROMPT_TEMPLATE = _load_system_prompt()
 
 
@@ -153,11 +186,12 @@ class Agent:
         self.compact_threshold = compact_threshold
         self._context_limit = _CONTEXT_LIMITS.get(model_id, _DEFAULT_LOCAL_LIMIT)
         self._last_input_tokens: int = 0
+        skill_block = _load_framework_skill(framework)
         self._system_prompt = (
             _SYSTEM_PROMPT_TEMPLATE
             .replace("{{project_name}}", project_name)
             .replace("{{framework}}", framework)
-        )
+        ) + skill_block
         self._host_workspace = os.path.join(settings.PROJECTS_DATA_DIR, project_id)
 
 

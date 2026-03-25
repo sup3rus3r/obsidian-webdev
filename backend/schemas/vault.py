@@ -12,14 +12,31 @@ class ProviderType(str, Enum):
     ollama = "ollama"
     lmstudio = "lmstudio"
     obsidian_ai = "obsidian-ai"
+    github_pat = "github_pat"
+    gitlab_pat = "gitlab_pat"
+    bitbucket_pat = "bitbucket_pat"
+
+
+class SecretType(str, Enum):
+    """Extended secret types including git credentials."""
+    # AI providers (user-scoped)
+    anthropic = "anthropic"
+    openai = "openai"
+    ollama = "ollama"
+    lmstudio = "lmstudio"
+    obsidian_ai = "obsidian-ai"
+    # Git credentials (project-scoped)
+    ssh_key = "ssh_key"
+    git_pat = "git_pat"
 
 
 class VaultKeyCreate(BaseModel):
     """Create or replace a stored secret.
 
     For cloud providers (anthropic, openai) `value` is the API key.
-    For local providers (ollama, lmstudio) `value` is the base URL
-    (e.g. "http://localhost:11434") — overrides the default from settings.
+    For local providers (ollama, lmstudio) `value` is the base URL.
+    For git_pat `value` is the personal access token.
+    SSH keys are generated server-side via POST /vault/ssh/generate.
     """
     provider: ProviderType
     label: str
@@ -56,3 +73,35 @@ class VaultValidateResponse(BaseModel):
     provider: str
     valid: bool
     message: str
+
+
+# --- SSH / Git schemas ---
+
+class SSHKeyGenerateRequest(BaseModel):
+    project_id: str
+    label: Optional[str] = None
+
+
+class SSHKeyResponse(BaseModel):
+    """Returned after generating or fetching an SSH keypair.
+    Only the public key is exposed — private key stays encrypted in vault.
+    """
+    project_id: str
+    public_key: str
+    label: str
+    created_at: datetime
+    already_existed: bool = False
+
+
+class GitPatCreate(BaseModel):
+    """Store a personal access token scoped to a project."""
+    project_id: str
+    label: str
+    token: str
+
+    @field_validator("token")
+    @classmethod
+    def token_not_empty(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("token must not be empty")
+        return v.strip()

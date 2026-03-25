@@ -11,6 +11,7 @@ from core.rate_limiter import limiter, rate_limit_exceeded_handler
 from routers import agent as agent_router
 from routers import auth as auth_router
 from routers import containers as containers_router
+from routers import git as git_router
 from routers import projects as projects_router
 from routers import workspace as workspace_router
 from routers import settings as settings_router
@@ -30,6 +31,7 @@ async def lifespan(app: FastAPI):
         ProjectExportCollection,
         ProjectFileCollection,
         ProjectFileSummaryCollection,
+        ProjectSecretCollection,
         UserCollection,
         UserPreferencesCollection,
         UserSecretCollection,
@@ -55,6 +57,7 @@ async def lifespan(app: FastAPI):
     await AgentSessionCollection.create_indexes(db)
     await AgentMessageCollection.create_indexes(db)
     await ProjectExportCollection.create_indexes(db)
+    await ProjectSecretCollection.create_indexes(db)
 
     from services.container_service import container_cleanup_task
     cleanup_task = asyncio.create_task(container_cleanup_task())
@@ -86,6 +89,7 @@ app.add_middleware(
 
 app.include_router(auth_router.router)
 app.include_router(vault_router.router)
+app.include_router(git_router.router)
 app.include_router(projects_router.router)
 app.include_router(containers_router.router)
 app.include_router(workspace_router.router)

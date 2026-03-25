@@ -243,6 +243,78 @@ class UserSecretCollection:
         return result.modified_count > 0
 
 
+class ProjectSecretCollection:
+    """Fernet-encrypted project-scoped secrets (SSH keys, PATs).
+
+    Keyed on (user_id, project_id, secret_type) — one active secret per type per project.
+    public_value stores the SSH public key (safe to expose); encrypted_value stores the private key / PAT.
+    """
+
+    collection_name = "project_secrets"
+
+    @classmethod
+    async def create_indexes(cls, db) -> None:
+        col = db[cls.collection_name]
+        await col.create_index("user_id")
+        await col.create_index("project_id")
+        await col.create_index(
+            [("user_id", 1), ("project_id", 1), ("secret_type", 1)],
+            unique=True,
+            partialFilterExpression={"is_deleted": False},
+        )
+
+    @classmethod
+    async def find_by_project(cls, db, user_id: str, project_id: str) -> list[dict]:
+        cursor = db[cls.collection_name].find(
+            {"user_id": user_id, "project_id": project_id, "is_deleted": False}
+        )
+        return await cursor.to_list(length=20)
+
+    @classmethod
+    async def find_by_type(cls, db, user_id: str, project_id: str, secret_type: str) -> Optional[dict]:
+        return await db[cls.collection_name].find_one(
+            {"user_id": user_id, "project_id": project_id, "secret_type": secret_type, "is_deleted": False}
+        )
+
+    @classmethod
+    async def upsert(
+        cls,
+        db,
+        user_id: str,
+        project_id: str,
+        secret_type: str,
+        label: str,
+        encrypted_value: str,
+        key_version: int = 1,
+        public_value: Optional[str] = None,
+    ) -> dict:
+        now = datetime.now(timezone.utc)
+        return await db[cls.collection_name].find_one_and_update(
+            {"user_id": user_id, "project_id": project_id, "secret_type": secret_type},
+            {
+                "$set": {
+                    "label": label,
+                    "encrypted_value": encrypted_value,
+                    "key_version": key_version,
+                    "public_value": public_value,
+                    "is_deleted": False,
+                    "updated_at": now,
+                },
+                "$setOnInsert": {"created_at": now},
+            },
+            upsert=True,
+            return_document=True,
+        )
+
+    @classmethod
+    async def soft_delete(cls, db, user_id: str, project_id: str, secret_type: str) -> bool:
+        result = await db[cls.collection_name].update_one(
+            {"user_id": user_id, "project_id": project_id, "secret_type": secret_type, "is_deleted": False},
+            {"$set": {"is_deleted": True, "updated_at": datetime.now(timezone.utc)}},
+        )
+        return result.modified_count > 0
+
+
 class AgentSessionCollection:
     """Agent build sessions. One session per active WebSocket connection."""
 
