@@ -818,6 +818,10 @@ export function AgentChat({
       onFileWrite?.(e.path);
     },
 
+    onFilesRefreshed: () => {
+      onFileWrite?.();
+    },
+
     onError: (e: { type: "error"; message: string }) => {
       flushStream();
       setIsRunning(false);

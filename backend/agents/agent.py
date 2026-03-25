@@ -111,7 +111,7 @@ def _load_framework_skill(framework: str) -> str:
     for filename in skill_files:
         path = os.path.join(_SKILLS_DIR, filename)
         try:
-            with open(path) as fh:
+            with open(path, encoding="utf-8") as fh:
                 parts.append(fh.read().strip())
         except FileNotFoundError:
             logger.warning("Skill file not found: %s", path)
@@ -659,7 +659,19 @@ class Agent:
             mid = len(lines) - self.max_bash_lines
             lines = lines[:half] + [f"... [{mid} lines truncated] ..."] + lines[-half:]
         body = "\n".join(lines)
+        # Sync any files created/modified by the bash command to MongoDB and notify the frontend
+        asyncio.create_task(self._sync_and_notify())
         return f"Exit: {exit_code}\n{body}" if body else f"Exit: {exit_code}"
+
+    async def _sync_and_notify(self) -> None:
+        try:
+            from services.file_service import FileService
+            from database.mongo import get_database
+            db = get_database()
+            await FileService.sync_from_volume(self.project_id)
+        except Exception:
+            pass
+        await self.on_event({"type": "files_refreshed"})
 
     async def _glob(self, pattern: str) -> str:
         full = os.path.join(self._host_workspace, pattern)

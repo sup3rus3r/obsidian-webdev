@@ -14,6 +14,7 @@ import type {
   DoneEvent,
   StoppedEvent,
   FileChangedEvent,
+  FilesRefreshedEvent,
   ErrorEvent,
   HistoryEvent,
 } from "@/types/api";
@@ -29,6 +30,7 @@ export interface AgentWsHandlers {
   onDone?: (e: DoneEvent) => void;
   onStopped?: (e: StoppedEvent) => void;
   onFileChanged?: (e: FileChangedEvent) => void;
+  onFilesRefreshed?: (e: FilesRefreshedEvent) => void;
   onError?: (e: ErrorEvent) => void;
   onHistory?: (e: HistoryEvent) => void;
   onOpen?: () => void;
@@ -146,6 +148,9 @@ export class AgentWsClient {
       case "file_changed":
         this.handlers.onFileChanged?.(event);
         break;
+      case "files_refreshed":
+        this.handlers.onFilesRefreshed?.(event);
+        break;
       case "error":
         this.handlers.onError?.(event);
         break;
@@ -182,6 +187,7 @@ export function useAgentWs(
     onDone:               (e) => handlersRef.current.onDone?.(e),
     onStopped:            (e) => handlersRef.current.onStopped?.(e),
     onFileChanged:        (e) => handlersRef.current.onFileChanged?.(e),
+    onFilesRefreshed:     (e) => handlersRef.current.onFilesRefreshed?.(e),
     onError:              (e) => handlersRef.current.onError?.(e),
     onHistory:            (e) => handlersRef.current.onHistory?.(e),
     onOpen:               ()  => handlersRef.current.onOpen?.(),

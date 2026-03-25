@@ -206,6 +206,10 @@ export interface FileChangedEvent {
   path: string;
 }
 
+export interface FilesRefreshedEvent {
+  type: "files_refreshed";
+}
+
 export interface ErrorEvent {
   type: "error";
   message: string;
@@ -233,6 +237,7 @@ export type ServerEvent =
   | DoneEvent
   | StoppedEvent
   | FileChangedEvent
+  | FilesRefreshedEvent
   | ErrorEvent
   | HistoryEvent;
 
