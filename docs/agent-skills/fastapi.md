@@ -217,56 +217,43 @@ bash -c "tmux capture-pane -p -t 0 2>/dev/null | tail -20"
 
 ---
 
-## Context7 — ALWAYS fetch docs before writing code
+## Context7 — fetch specific docs before writing each feature
 
-Use `web_fetch` to get current FastAPI, SQLAlchemy, and Pydantic documentation.
+The overview docs are already in your context. Before writing code for any specific feature, fetch the relevant topic — this is not optional.
 
-### FastAPI docs via Context7
-
+**FastAPI:**
 ```
-GET https://context7.com/api/v1/fastapi/fastapi?tokens=8000&topic=<TOPIC>
+web_fetch("https://context7.com/api/v1/fastapi/fastapi?tokens=8000&topic=<TOPIC>")
 ```
 
 | What you are building | Topic |
 |---|---|
 | New router / endpoint | `routing-bigger-applications` |
 | Request body / schemas | `request-body` |
-| Query params / path params | `query-params-path-params` |
+| Query / path params | `query-params-path-params` |
 | Dependency injection | `dependencies-depends` |
 | Authentication / JWT | `security-oauth2-jwt` |
 | Background tasks | `background-tasks` |
 | Middleware | `middleware` |
 | File upload | `request-files` |
 | WebSockets | `websockets` |
-| Testing | `testing` |
 | Lifespan events | `lifespan-events` |
 
-**Call example:**
+**SQLAlchemy v2:**
 ```
-web_fetch("https://context7.com/api/v1/fastapi/fastapi?tokens=8000&topic=dependencies-depends")
-```
-
-### SQLAlchemy v2 docs via Context7
-
-```
-GET https://context7.com/api/v1/sqlalchemy/sqlalchemy?tokens=7000&topic=<TOPIC>
+web_fetch("https://context7.com/api/v1/sqlalchemy/sqlalchemy?tokens=7000&topic=<TOPIC>")
 ```
 
-| What you need | Topic |
-|---|---|
-| ORM models setup | `orm-declarative-mapping` |
-| Querying (select, filter) | `orm-querying-select` |
-| Relationships | `orm-relationships` |
-| Async SQLAlchemy | `orm-asyncio` |
-| Migrations with Alembic | `alembic-migrations` |
+Topics: `orm-declarative-mapping`, `orm-querying-select`, `orm-relationships`, `orm-asyncio`, `alembic-migrations`
 
-### Pydantic v2 docs via Context7
-
+**Pydantic v2:**
 ```
-GET https://context7.com/api/v1/pydantic/pydantic?tokens=6000&topic=<TOPIC>
+web_fetch("https://context7.com/api/v1/pydantic/pydantic?tokens=6000&topic=<TOPIC>")
 ```
 
-Topics: `models`, `validators`, `settings-management`, `serialization`, `computed-fields`, `model-config`
+Topics: `models`, `validators`, `settings-management`, `serialization`, `model-config`
+
+**When to fetch:** Before writing each task on your plan that touches a FastAPI/SQLAlchemy/Pydantic API.
 
 ---
 

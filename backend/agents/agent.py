@@ -196,7 +196,61 @@ class Agent:
             .replace("{{framework}}", framework)
         ) + skill_block
         self._host_workspace = os.path.join(settings.PROJECTS_DATA_DIR, project_id)
+        self._startup_done = False  # tracks whether startup tools ran this session
 
+    # Context7 overview URL per framework
+    _CONTEXT7_OVERVIEW: dict[str, str] = {
+        "nextjs":    "https://context7.com/api/v1/vercel/next.js?tokens=6000&topic=overview",
+        "react":     "https://context7.com/api/v1/facebook/react?tokens=6000&topic=overview",
+        "fastapi":   "https://context7.com/api/v1/fastapi/fastapi?tokens=6000&topic=overview",
+        "fullstack": "https://context7.com/api/v1/vercel/next.js?tokens=4000&topic=overview",
+    }
+
+    async def _run_startup_tools(self, messages: list[dict]) -> None:
+        """Execute list_files_brief + web_fetch(context7 overview) before the first LLM call.
+
+        Results are emitted as tool events (visible in the chat) and injected into
+        message history so the model sees them as already-completed tool calls.
+        """
+        tools_to_run = []
+
+        # Always run list_files_brief
+        tools_to_run.append(("list_files_brief", {}))
+
+        # Run web_fetch for the framework's Context7 overview if available
+        url = self._CONTEXT7_OVERVIEW.get(self.framework)
+        if url:
+            tools_to_run.append(("web_fetch", {"url": url}))
+
+        for name, params in tools_to_run:
+            await self.on_event({"type": "tool_call", "tool": name, "params": params})
+            try:
+                result = await self._execute_tool(name, params)
+            except Exception as exc:
+                result = f"Error: {exc}"
+            await self.on_event({"type": "tool_result", "tool": name, "result": result})
+
+            # Inject as a tool exchange into messages in the correct provider format
+            tc_id = str(uuid4())
+            if self.model_provider == "anthropic":
+                messages.append({
+                    "role": "assistant",
+                    "content": [{"type": "tool_use", "id": tc_id, "name": name, "input": params}],
+                })
+                messages.append({
+                    "role": "user",
+                    "content": [{"type": "tool_result", "tool_use_id": tc_id, "content": result}],
+                })
+            else:
+                messages.append({
+                    "role": "assistant",
+                    "tool_calls": [{"id": tc_id, "type": "function", "function": {"name": name, "arguments": json.dumps(params)}}],
+                })
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tc_id,
+                    "content": result,
+                })
 
     async def run(
         self,
@@ -210,6 +264,11 @@ class Agent:
         messages — conversation history (mutated in-place)
         """
         messages.append({"role": "user", "content": prompt})
+
+        # On the first message of a session, run startup tools before the LLM sees anything
+        if not self._startup_done:
+            self._startup_done = True
+            await self._run_startup_tools(messages)
 
         import itertools
         for _ in itertools.count() if _MAX_ITERATIONS is None else range(_MAX_ITERATIONS):

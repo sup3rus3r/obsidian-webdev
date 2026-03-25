@@ -178,56 +178,40 @@ Always run build after significant changes to catch TypeScript errors.
 
 ---
 
-## Context7 — ALWAYS fetch docs before writing code
+## Context7 — fetch specific docs before writing each feature
 
-Use `web_fetch` to get current React and Vite documentation **before starting any significant feature**.
+The overview docs are already in your context. Before writing code for any specific feature, fetch the relevant topic — this is not optional.
 
-### React docs via Context7
-
+**React:**
 ```
-GET https://context7.com/api/v1/facebook/react?tokens=8000&topic=<TOPIC>
-```
-
-| What you are building | Topic to use |
-|---|---|
-| Hooks (useState, useEffect, etc.) | `hooks-reference` |
-| useReducer / complex state | `use-reducer` |
-| Context API | `use-context-context-api` |
-| Custom hooks | `reusing-logic-custom-hooks` |
-| Refs and DOM access | `use-ref-manipulating-dom` |
-| Concurrent features | `use-transition-use-deferred-value` |
-| Forms and controlled inputs | `forms-controlled-uncontrolled` |
-| Error boundaries | `error-boundaries` |
-| Portals | `portals` |
-| Performance / memo | `use-memo-use-callback-memo` |
-
-**Call example:**
-```
-web_fetch("https://context7.com/api/v1/facebook/react?tokens=8000&topic=hooks-reference")
-```
-
-### React Router docs via Context7
-
-```
-GET https://context7.com/api/v1/remix-run/react-router?tokens=6000&topic=<TOPIC>
+web_fetch("https://context7.com/api/v1/facebook/react?tokens=8000&topic=<TOPIC>")
 ```
 
 | What you are building | Topic |
 |---|---|
-| Basic routing setup | `getting-started-routing` |
-| Nested routes | `nested-routes` |
-| Route params | `url-params` |
-| Navigation (useNavigate) | `use-navigate` |
-| Loaders and actions | `loaders-actions` |
-| Protected routes | `auth-protected-routes` |
+| Hooks (useState, useEffect) | `hooks-reference` |
+| useReducer / complex state | `use-reducer` |
+| Context API | `use-context-context-api` |
+| Custom hooks | `reusing-logic-custom-hooks` |
+| Refs and DOM | `use-ref-manipulating-dom` |
+| Forms | `forms-controlled-uncontrolled` |
+| Performance / memo | `use-memo-use-callback-memo` |
 
-### Vite docs via Context7
-
+**React Router:**
 ```
-GET https://context7.com/api/v1/vitejs/vite?tokens=5000&topic=<TOPIC>
+web_fetch("https://context7.com/api/v1/remix-run/react-router?tokens=6000&topic=<TOPIC>")
 ```
 
-Topics: `env-variables`, `static-assets`, `build-options`, `plugins`, `proxy`
+Topics: `getting-started-routing`, `nested-routes`, `url-params`, `use-navigate`, `auth-protected-routes`
+
+**Vite:**
+```
+web_fetch("https://context7.com/api/v1/vitejs/vite?tokens=5000&topic=<TOPIC>")
+```
+
+Topics: `env-variables`, `static-assets`, `build-options`, `proxy`
+
+**When to fetch:** Before writing each task on your plan that touches a React/Vite/Router API.
 
 ---
 

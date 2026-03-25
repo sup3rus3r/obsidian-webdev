@@ -9,6 +9,7 @@ Containers are long-lived dev environments:
 All Docker SDK calls are synchronous; wrapped with asyncio.to_thread.
 """
 import asyncio
+import logging
 import os
 import sys
 from typing import AsyncGenerator, Optional
@@ -21,6 +22,8 @@ from fastapi import HTTPException
 from config import settings
 from database.mongo import get_database
 from models.mongo_models import ProjectCollection, ProjectFileCollection
+
+logger = logging.getLogger(__name__)
 
 
 BASE_IMAGE = "obsidian-webdev-base:latest"

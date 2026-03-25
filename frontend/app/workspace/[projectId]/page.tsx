@@ -959,7 +959,7 @@ function MiniPreview({
                     </button>
                   )}
                 </div>
-                {(showLogs || (!previewUrl && devLogs)) && devLogs && (
+                {showLogs && devLogs && (
                   <pre className="w-full flex-1 overflow-auto rounded bg-black/60 p-2 text-[9px] leading-relaxed text-green-400/80 font-mono whitespace-pre-wrap break-all">
                     {devLogs}
                   </pre>

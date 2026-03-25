@@ -119,39 +119,33 @@ export const metadata: Metadata = {
 
 ---
 
-## Context7 — ALWAYS fetch docs before writing code
+## Context7 — fetch specific docs before writing each feature
 
-The Context7 API gives you current, version-accurate Next.js documentation. Use `web_fetch` to retrieve it **before starting any significant feature**.
-
-### How to use Context7
+The overview docs are already in your context. Before writing code for any specific feature, fetch the relevant topic — this is not optional.
 
 ```
-GET https://context7.com/api/v1/vercel/next.js?tokens=8000&topic=<TOPIC>
+web_fetch("https://context7.com/api/v1/vercel/next.js?tokens=8000&topic=<TOPIC>")
 ```
 
-Replace `<TOPIC>` with the specific thing you are about to implement. Examples:
-
-| What you are building | Topic to use |
+| What you are building | Topic |
 |---|---|
-| Any new route or page | `app-router-routing-pages` |
+| Routes / pages | `app-router-routing-pages` |
 | Data fetching | `data-fetching-server-components` |
 | Server Actions / forms | `server-actions-forms` |
 | Route Handlers (API) | `route-handlers` |
 | Layouts, templates | `layouts-templates` |
 | Metadata / SEO | `metadata-api` |
 | Image optimization | `next-image` |
-| Authentication patterns | `authentication` |
+| Authentication | `authentication` |
 | Middleware | `middleware` |
 | Dynamic routes | `dynamic-routes-catch-all` |
 | Suspense / loading | `loading-ui-streaming` |
 | Error handling | `error-handling` |
 
-**Call example:**
+**When to fetch:** Before writing each task on your plan that touches a Next.js API. Example:
 ```
 web_fetch("https://context7.com/api/v1/vercel/next.js?tokens=8000&topic=server-actions-forms")
 ```
-
-Always fetch before writing — never rely on training knowledge for Next.js APIs. The framework changes rapidly.
 
 ---
 
