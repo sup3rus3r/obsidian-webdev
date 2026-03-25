@@ -21,6 +21,7 @@ TOOL_TIER: dict[str, str] = {
     "web_search":       "auto",
     "list_files_brief": "auto",
     "ask_user":         "auto",
+    "request_done":     "auto",
 }
 
 _DESTRUCTIVE_RE = re.compile(
@@ -213,6 +214,25 @@ TOOLS_ANTHROPIC: list[dict] = [
             "type": "object",
             "properties": {},
             "required": [],
+        },
+    },
+    {
+        "name": "request_done",
+        "description": (
+            "Signal that you have completed all tasks and request user approval before stopping. "
+            "You MUST call this tool when you believe the work is done — never just stop responding. "
+            "Provide a clear summary of everything you built or changed. "
+            "The user will review and either approve (you stop) or send feedback (you continue)."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "summary": {
+                    "type": "string",
+                    "description": "A concise summary of what was built or changed. List key files created/modified and what the app does.",
+                },
+            },
+            "required": ["summary"],
         },
     },
 ]

@@ -96,6 +96,7 @@ export default function WorkspacePage() {
   const newFileInputRef = useRef<HTMLInputElement>(null);
   const prevBuildRunningRef = useRef(false);
   const prevPreviewUrlRef = useRef<string | null>(null);
+  const previewRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const activeTab = openTabs.find((t) => t.path === activeTabPath) ?? null;
   editorValueRef.current = activeTab?.content ?? "";
@@ -120,15 +121,18 @@ export default function WorkspacePage() {
       setFileNodes(buildFileTree(files));
 
 
-      if (proj.status !== "running" && proj.status !== "building") {
+      // Always (re)start the container and dev server on page load — idempotent,
+      // ensures the dev server is running even if the container was restarted externally.
+      if (proj.status !== "building") {
         setIsContainerLoading(true);
-        setProject((p) => (p ? { ...p, status: "building" } : p));
+        if (proj.status !== "running") {
+          setProject((p) => (p ? { ...p, status: "building" } : p));
+        }
         try {
           const updated = await runProject(projectId, session.accessToken);
           setProject(updated);
           setTerminalKey((k) => k + 1);
         } catch {
-
           setProject(proj);
         } finally {
           setIsContainerLoading(false);
@@ -192,6 +196,12 @@ export default function WorkspacePage() {
       try {
         const files = await listFiles(projectId, session.accessToken);
         setFileNodes(buildFileTree(files));
+
+        // Debounce preview refresh — reload iframe 1.5s after the last file change
+        if (previewRefreshTimerRef.current) clearTimeout(previewRefreshTimerRef.current);
+        previewRefreshTimerRef.current = setTimeout(() => {
+          setPreviewIframeKey((k) => k + 1);
+        }, 1500);
 
         if (!path) return;
 

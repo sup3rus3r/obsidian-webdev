@@ -37,6 +37,9 @@ _CONTEXT_LIMITS: dict[str, int] = {
     "claude-opus-4-6": 200_000,
     "claude-sonnet-4-6": 200_000,
     "claude-haiku-4-5-20251001": 200_000,
+    "gpt-5.4": 1_000_000,
+    "gpt-5.4-mini": 1_000_000,
+    "gpt-5.4-nano": 1_000_000,
     "gpt-5.2": 1_000_000,
     "gpt-5.2-pro": 1_000_000,
     "gpt-5": 1_000_000,
@@ -436,6 +439,9 @@ class Agent:
         except asyncio.CancelledError:
             cancelled = True
 
+        # Check if any tool returned the done-approved sentinel
+        done_approved = any(v == "__DONE_APPROVED__" for v in result_map.values())
+
         messages.append({
             "role": "user",
             "content": [
@@ -445,6 +451,9 @@ class Agent:
         })
         if cancelled:
             raise asyncio.CancelledError
+        if done_approved:
+            await self.on_event({"type": "done", "content": ""})
+            return True
         if stop_event.is_set():
             await self.on_event({"type": "stopped"})
             return True
@@ -502,6 +511,9 @@ class Agent:
         except asyncio.CancelledError:
             cancelled = True
 
+        # Check if any tool returned the done-approved sentinel
+        done_approved = any(v == "__DONE_APPROVED__" for v in result_map.values())
+
         for tc in raw_tcs:
             messages.append({"role": "tool", "tool_call_id": tc["id"], "content": result_map[tc["id"]]})
 
@@ -511,6 +523,9 @@ class Agent:
 
         if cancelled:
             raise asyncio.CancelledError
+        if done_approved:
+            await self.on_event({"type": "done", "content": ""})
+            return True
         if stop_event.is_set():
             await self.on_event({"type": "stopped"})
             return True
@@ -530,6 +545,22 @@ class Agent:
             result = await self._ask_user(params.get("question", ""))
             await self.on_event({"type": "tool_result", "tool": name, "result": result})
             return result
+
+        if name == "request_done":
+            summary = params.get("summary", "Task complete.")
+            await self.on_event({"type": "done_request", "summary": summary})
+            user_response = await self.request_clarification(
+                f"✅ **Agent requests approval to finish**\n\n{summary}\n\nReply **approve** to accept, or describe what needs to change.",
+                "done_approval",
+            )
+            lowered = user_response.strip().lower()
+            if lowered in ("approve", "approved", "yes", "ok", "looks good", "lgtm", "done"):
+                await self.on_event({"type": "tool_result", "tool": name, "result": "Approved. Stopping."})
+                return "__DONE_APPROVED__"
+            else:
+                feedback = f"User wants changes: {user_response}"
+                await self.on_event({"type": "tool_result", "tool": name, "result": feedback})
+                return feedback
 
         tier = tool_tier(name, params)
         needs_approval = tier == "always" or (tier == "ask" and self.permission_mode == "ask")
@@ -575,6 +606,7 @@ class Agent:
             "web_fetch":        self._web_fetch,
             "web_search":       self._web_search,
             "list_files_brief": self._list_files_brief,
+            # request_done is handled in _handle_tool_call before reaching here
         }
         fn = dispatch.get(name)
         if not fn:
