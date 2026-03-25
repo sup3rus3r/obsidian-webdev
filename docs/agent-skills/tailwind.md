@@ -152,7 +152,7 @@ npm run build 2>&1 | tail -5
 ## Context7 — fetch before using any utility you are unsure about
 
 ```
-GET https://context7.com/api/v1/tailwindlabs/tailwindcss/docs?tokens=6000&topic=<TOPIC>
+GET https://context7.com/api/v1/tailwindlabs/tailwindcss.com?tokens=6000&topic=<TOPIC>
 ```
 
 | What you need | Topic |
@@ -173,7 +173,7 @@ GET https://context7.com/api/v1/tailwindlabs/tailwindcss/docs?tokens=6000&topic=
 
 **Call example:**
 ```
-web_fetch("https://context7.com/api/v1/tailwindlabs/tailwindcss/docs?tokens=6000&topic=upgrade-guide")
+web_fetch("https://context7.com/api/v1/tailwindlabs/tailwindcss.com?tokens=6000&topic=upgrade-guide")
 ```
 
 Always fetch when:

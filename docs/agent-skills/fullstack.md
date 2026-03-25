@@ -131,41 +131,41 @@ For the **backend layer**, apply the matching skill:
 
 Next.js:
 ```
-web_fetch("https://context7.com/api/v1/nextjs/nextjs/docs?tokens=8000&topic=<TOPIC>")
+web_fetch("https://context7.com/api/v1/vercel/next.js?tokens=8000&topic=<TOPIC>")
 ```
 
 React:
 ```
-web_fetch("https://context7.com/api/v1/facebook/react/docs?tokens=8000&topic=<TOPIC>")
+web_fetch("https://context7.com/api/v1/facebook/react?tokens=8000&topic=<TOPIC>")
 ```
 
 ### FastAPI
 ```
-web_fetch("https://context7.com/api/v1/tiangolo/fastapi/docs?tokens=8000&topic=<TOPIC>")
+web_fetch("https://context7.com/api/v1/fastapi/fastapi?tokens=8000&topic=<TOPIC>")
 ```
 
 ### Express.js
 ```
-web_fetch("https://context7.com/api/v1/expressjs/express/docs?tokens=6000&topic=<TOPIC>")
+web_fetch("https://context7.com/api/v1/expressjs/express?tokens=6000&topic=<TOPIC>")
 ```
 
 Topics: `routing`, `middleware`, `error-handling`, `static-files`, `request-response`
 
 ### Hono
 ```
-web_fetch("https://context7.com/api/v1/honojs/hono/docs?tokens=6000&topic=<TOPIC>")
+web_fetch("https://context7.com/api/v1/honojs/hono?tokens=6000&topic=<TOPIC>")
 ```
 
 Topics: `routing`, `middleware`, `validation`, `rpc`, `websocket`
 
 ### Tailwind CSS v4
 ```
-web_fetch("https://context7.com/api/v1/tailwindlabs/tailwindcss/docs?tokens=6000&topic=<TOPIC>")
+web_fetch("https://context7.com/api/v1/tailwindlabs/tailwindcss.com?tokens=6000&topic=<TOPIC>")
 ```
 
 ### Prisma (if present)
 ```
-web_fetch("https://context7.com/api/v1/prisma/prisma/docs?tokens=7000&topic=<TOPIC>")
+web_fetch("https://context7.com/api/v1/prisma/prisma?tokens=7000&topic=<TOPIC>")
 ```
 
 Topics: `schema`, `client-queries`, `migrations`, `relations`, `filtering-sorting`

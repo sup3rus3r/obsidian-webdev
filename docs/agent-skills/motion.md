@@ -295,31 +295,27 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
 
 ---
 
-## Context7 — fetch before using any API you are unsure about
+## Motion docs — fetch from official site when unsure
 
-```
-GET https://context7.com/api/v1/framer/motion/docs?tokens=7000&topic=<TOPIC>
-```
+Motion is not indexed on Context7. Fetch the official docs directly:
 
-| What you need | Topic |
+| What you need | URL |
 |---|---|
-| Installation / setup | `introduction` |
-| Basic animation props | `animation` |
-| Variants and orchestration | `variants` |
-| Mount/unmount transitions | `animate-presence` |
-| Layout animations | `layout-animations` |
-| Shared layout / layoutId | `shared-layout-animations` |
-| Scroll animations | `scroll-animations` |
-| Gestures (drag, hover, tap) | `gestures` |
-| useAnimate / imperative API | `use-animate` |
-| Motion values | `motion-values` |
-| useScroll / useTransform | `use-scroll` |
-| useInView | `use-in-view` |
-| useSpring | `use-spring` |
+| Introduction / setup | `https://motion.dev/docs/react-quick-start` |
+| animation prop | `https://motion.dev/docs/react-animation` |
+| Variants | `https://motion.dev/docs/react-animation#variants` |
+| AnimatePresence | `https://motion.dev/docs/react-animate-presence` |
+| Layout animations | `https://motion.dev/docs/react-layout-animations` |
+| Gestures | `https://motion.dev/docs/react-gestures` |
+| useAnimate | `https://motion.dev/docs/react-use-animate` |
+| useScroll | `https://motion.dev/docs/react-use-scroll` |
+| useInView | `https://motion.dev/docs/react-use-in-view` |
+| useSpring | `https://motion.dev/docs/react-use-spring` |
+| Motion values | `https://motion.dev/docs/react-motion-value` |
 
 **Call example:**
 ```
-web_fetch("https://context7.com/api/v1/framer/motion/docs?tokens=7000&topic=variants")
+web_fetch("https://motion.dev/docs/react-animation#variants")
 ```
 
 Always fetch when:

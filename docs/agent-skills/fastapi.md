@@ -224,7 +224,7 @@ Use `web_fetch` to get current FastAPI, SQLAlchemy, and Pydantic documentation.
 ### FastAPI docs via Context7
 
 ```
-GET https://context7.com/api/v1/tiangolo/fastapi/docs?tokens=8000&topic=<TOPIC>
+GET https://context7.com/api/v1/fastapi/fastapi?tokens=8000&topic=<TOPIC>
 ```
 
 | What you are building | Topic |
@@ -243,13 +243,13 @@ GET https://context7.com/api/v1/tiangolo/fastapi/docs?tokens=8000&topic=<TOPIC>
 
 **Call example:**
 ```
-web_fetch("https://context7.com/api/v1/tiangolo/fastapi/docs?tokens=8000&topic=dependencies-depends")
+web_fetch("https://context7.com/api/v1/fastapi/fastapi?tokens=8000&topic=dependencies-depends")
 ```
 
 ### SQLAlchemy v2 docs via Context7
 
 ```
-GET https://context7.com/api/v1/sqlalchemy/sqlalchemy/docs?tokens=7000&topic=<TOPIC>
+GET https://context7.com/api/v1/sqlalchemy/sqlalchemy?tokens=7000&topic=<TOPIC>
 ```
 
 | What you need | Topic |
@@ -263,7 +263,7 @@ GET https://context7.com/api/v1/sqlalchemy/sqlalchemy/docs?tokens=7000&topic=<TO
 ### Pydantic v2 docs via Context7
 
 ```
-GET https://context7.com/api/v1/pydantic/pydantic/docs?tokens=6000&topic=<TOPIC>
+GET https://context7.com/api/v1/pydantic/pydantic?tokens=6000&topic=<TOPIC>
 ```
 
 Topics: `models`, `validators`, `settings-management`, `serialization`, `computed-fields`, `model-config`

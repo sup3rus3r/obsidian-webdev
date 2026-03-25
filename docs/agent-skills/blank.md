@@ -75,22 +75,22 @@ Identify the technology and use the right Context7 endpoint:
 
 ```
 # Next.js
-web_fetch("https://context7.com/api/v1/nextjs/nextjs/docs?tokens=8000&topic=<TOPIC>")
+web_fetch("https://context7.com/api/v1/vercel/next.js?tokens=8000&topic=<TOPIC>")
 
 # React
-web_fetch("https://context7.com/api/v1/facebook/react/docs?tokens=8000&topic=<TOPIC>")
+web_fetch("https://context7.com/api/v1/facebook/react?tokens=8000&topic=<TOPIC>")
 
 # FastAPI
-web_fetch("https://context7.com/api/v1/tiangolo/fastapi/docs?tokens=8000&topic=<TOPIC>")
+web_fetch("https://context7.com/api/v1/fastapi/fastapi?tokens=8000&topic=<TOPIC>")
 
 # Express
-web_fetch("https://context7.com/api/v1/expressjs/express/docs?tokens=6000&topic=<TOPIC>")
+web_fetch("https://context7.com/api/v1/expressjs/express?tokens=6000&topic=<TOPIC>")
 
 # Tailwind v4
-web_fetch("https://context7.com/api/v1/tailwindlabs/tailwindcss/docs?tokens=6000&topic=<TOPIC>")
+web_fetch("https://context7.com/api/v1/tailwindlabs/tailwindcss.com?tokens=6000&topic=<TOPIC>")
 
 # TypeScript
-web_fetch("https://context7.com/api/v1/microsoft/typescript/docs?tokens=6000&topic=<TOPIC>")
+web_fetch("https://context7.com/api/v1/microsoft/typescript?tokens=6000&topic=<TOPIC>")
 ```
 
 ---

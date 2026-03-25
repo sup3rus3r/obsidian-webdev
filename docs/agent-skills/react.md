@@ -185,7 +185,7 @@ Use `web_fetch` to get current React and Vite documentation **before starting an
 ### React docs via Context7
 
 ```
-GET https://context7.com/api/v1/facebook/react/docs?tokens=8000&topic=<TOPIC>
+GET https://context7.com/api/v1/facebook/react?tokens=8000&topic=<TOPIC>
 ```
 
 | What you are building | Topic to use |
@@ -203,13 +203,13 @@ GET https://context7.com/api/v1/facebook/react/docs?tokens=8000&topic=<TOPIC>
 
 **Call example:**
 ```
-web_fetch("https://context7.com/api/v1/facebook/react/docs?tokens=8000&topic=hooks-reference")
+web_fetch("https://context7.com/api/v1/facebook/react?tokens=8000&topic=hooks-reference")
 ```
 
 ### React Router docs via Context7
 
 ```
-GET https://context7.com/api/v1/remix-run/react-router/docs?tokens=6000&topic=<TOPIC>
+GET https://context7.com/api/v1/remix-run/react-router?tokens=6000&topic=<TOPIC>
 ```
 
 | What you are building | Topic |
@@ -224,7 +224,7 @@ GET https://context7.com/api/v1/remix-run/react-router/docs?tokens=6000&topic=<T
 ### Vite docs via Context7
 
 ```
-GET https://context7.com/api/v1/vitejs/vite/docs?tokens=5000&topic=<TOPIC>
+GET https://context7.com/api/v1/vitejs/vite?tokens=5000&topic=<TOPIC>
 ```
 
 Topics: `env-variables`, `static-assets`, `build-options`, `plugins`, `proxy`
@@ -235,7 +235,7 @@ Topics: `env-variables`, `static-assets`, `build-options`, `plugins`, `proxy`
 
 Fetch before using:
 ```
-web_fetch("https://context7.com/api/v1/tailwindlabs/tailwindcss/docs?tokens=5000&topic=<TOPIC>")
+web_fetch("https://context7.com/api/v1/tailwindlabs/tailwindcss.com?tokens=5000&topic=<TOPIC>")
 ```
 
 ---

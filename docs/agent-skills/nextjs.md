@@ -126,7 +126,7 @@ The Context7 API gives you current, version-accurate Next.js documentation. Use 
 ### How to use Context7
 
 ```
-GET https://context7.com/api/v1/nextjs/nextjs/docs?tokens=8000&topic=<TOPIC>
+GET https://context7.com/api/v1/vercel/next.js?tokens=8000&topic=<TOPIC>
 ```
 
 Replace `<TOPIC>` with the specific thing you are about to implement. Examples:
@@ -148,7 +148,7 @@ Replace `<TOPIC>` with the specific thing you are about to implement. Examples:
 
 **Call example:**
 ```
-web_fetch("https://context7.com/api/v1/nextjs/nextjs/docs?tokens=8000&topic=server-actions-forms")
+web_fetch("https://context7.com/api/v1/vercel/next.js?tokens=8000&topic=server-actions-forms")
 ```
 
 Always fetch before writing — never rely on training knowledge for Next.js APIs. The framework changes rapidly.
@@ -162,7 +162,7 @@ Key v4 differences active in this project:
 - Use `@import "tailwindcss"` not `@tailwind base/components/utilities`
 - Fetch Tailwind docs via Context7 before using any utility you are unsure about:
   ```
-  web_fetch("https://context7.com/api/v1/tailwindlabs/tailwindcss/docs?tokens=5000&topic=<TOPIC>")
+  web_fetch("https://context7.com/api/v1/tailwindlabs/tailwindcss.com?tokens=5000&topic=<TOPIC>")
   ```
 
 ---
