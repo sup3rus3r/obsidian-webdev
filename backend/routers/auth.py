@@ -17,6 +17,7 @@ from schemas.auth import (
     APIClientCreateResponse,
     APIClientListResponse,
     LoginResponse,
+    RefreshResponse,
     UserDetailsResponse,
     UserResponse,
     ToggleRoleResponse,
@@ -39,6 +40,30 @@ async def register(request: EncryptedRequest, db: Session = Depends(get_db)):
 async def login(request: EncryptedRequest, db: Session = Depends(get_db)):
     """Login and receive a JWT access token."""
     return await AuthService.login_user(request.encrypted, db)
+
+
+@router.post("/auth/refresh", response_model=RefreshResponse)
+@limiter.limit("30/minute")
+async def refresh_token(
+    request: Request,
+    current_user: TokenData = Depends(get_current_user),
+):
+    """Exchange a valid JWT for a fresh one with a new expiry."""
+    from datetime import timedelta
+    from core.security import create_access_token
+    new_token = create_access_token(
+        data={
+            "user_id": current_user.user_id,
+            "username": current_user.username,
+            "role": current_user.role,
+            "token_type": "user",
+        },
+        expires_delta=timedelta(minutes=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES),
+    )
+    return RefreshResponse(
+        access_token=new_token,
+        expires_in=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+    )
 
 
 @router.get("/health")
